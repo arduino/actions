@@ -20,13 +20,13 @@ jobs:
           version: 10.x
 
       - name: npm install
-        working-directory: ./setup-taskfile
+        working-directory: ./setup-protoc
         run: npm install
 
       - name: npm lint
-        working-directory: ./setup-taskfile
+        working-directory: ./setup-protoc
         run: npm run format-check
 
       - name: npm test
-        working-directory: ./setup-taskfile
+        working-directory: ./setup-protoc
         run: npm test
