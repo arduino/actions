@@ -40,6 +40,7 @@ if (!tempDirectory) {
 }
 const core = __importStar(require("@actions/core"));
 const tc = __importStar(require("@actions/tool-cache"));
+const exc = __importStar(require("@actions/exec"));
 let osPlat = os.platform();
 let osArch = os.arch();
 function getProtoc(version) {
@@ -60,9 +61,23 @@ function getProtoc(version) {
         // add the bin folder to the PATH
         toolPath = path.join(toolPath, "bin");
         core.addPath(toolPath);
-        // make available Go-specific compiler to the PATH if needed
-        const goPath = process.env["GOPATH"] || "";
-        if (goPath) {
+        // make available Go-specific compiler to the PATH,
+        // this is needed because of https://github.com/actions/setup-go/issues/14
+        const goBin = process.env["GOBIN"] || "";
+        if (goBin) {
+            // Go is installed, add $GOPATH/bin to the $PATH because setup-go
+            // doesn't do it for us.
+            let stdOut = "";
+            let options = {
+                listeners: {
+                    stdout: (data) => {
+                        stdOut += data.toString();
+                    }
+                }
+            };
+            yield exc.exec("go", ["env", "GOPATH"], options);
+            const goPath = stdOut.trim();
+            core.debug("GOPATH: " + goPath);
             core.addPath(path.join(goPath, "bin"));
         }
     });

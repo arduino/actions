@@ -69,7 +69,7 @@ describe("installer tests", () => {
       } else {
         expect(fs.existsSync(path.join(protocDir, "bin", "protoc"))).toBe(true);
       }
-    });
+    }, 100000);
 
     it("Gets latest version of protoc using 3.x and no matching version is installed", async () => {
       await installer.getProtoc("3.x");
@@ -83,6 +83,6 @@ describe("installer tests", () => {
       } else {
         expect(fs.existsSync(path.join(protocDir, "bin", "protoc"))).toBe(true);
       }
-    });
+    }, 100000);
   });
 });
