@@ -57,8 +57,14 @@ function getProtoc(version) {
             toolPath = yield downloadRelease(version);
             core.debug("Protoc cached under " + toolPath);
         }
+        // add the bin folder to the PATH
         toolPath = path.join(toolPath, "bin");
         core.addPath(toolPath);
+        // make available Go-specific compiler to the PATH if needed
+        const goRoot = process.env['GOROOT'] || '';
+        if (goRoot) {
+            core.addPath(path.join(goRoot, "bin"));
+        }
     });
 }
 exports.getProtoc = getProtoc;
