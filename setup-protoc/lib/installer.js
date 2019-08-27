@@ -41,6 +41,7 @@ if (!tempDirectory) {
 const core = __importStar(require("@actions/core"));
 const tc = __importStar(require("@actions/tool-cache"));
 const exc = __importStar(require("@actions/exec"));
+const io = __importStar(require("@actions/io"));
 let osPlat = os.platform();
 let osArch = os.arch();
 function getProtoc(version) {
@@ -63,7 +64,7 @@ function getProtoc(version) {
         core.addPath(toolPath);
         // make available Go-specific compiler to the PATH,
         // this is needed because of https://github.com/actions/setup-go/issues/14
-        const goBin = process.env["GOBIN"] || "";
+        const goBin = yield io.which("go", false);
         if (goBin) {
             // Go is installed, add $GOPATH/bin to the $PATH because setup-go
             // doesn't do it for us.
