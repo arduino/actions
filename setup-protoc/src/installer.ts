@@ -55,9 +55,9 @@ export async function getProtoc(version: string) {
   core.addPath(toolPath);
 
   // make available Go-specific compiler to the PATH if needed
-  const goRoot: string = process.env['GOROOT'] || '';
-  if (goRoot) {
-    core.addPath(path.join(goRoot, "bin"))
+  const goPath: string = process.env["GOPATH"] || "";
+  if (goPath) {
+    core.addPath(path.join(goPath, "bin"));
   }
 }
 

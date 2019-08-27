@@ -61,9 +61,9 @@ function getProtoc(version) {
         toolPath = path.join(toolPath, "bin");
         core.addPath(toolPath);
         // make available Go-specific compiler to the PATH if needed
-        const goRoot = process.env['GOROOT'] || '';
-        if (goRoot) {
-            core.addPath(path.join(goRoot, "bin"));
+        const goPath = process.env["GOPATH"] || "";
+        if (goPath) {
+            core.addPath(path.join(goPath, "bin"));
         }
     });
 }
