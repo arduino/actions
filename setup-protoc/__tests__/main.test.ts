@@ -21,14 +21,14 @@ describe("installer tests", () => {
     await io.mkdirP(tempDir);
   });
 
-  // afterAll(async () => {
-  //   try {
-  //     await io.rmRF(toolDir);
-  //     await io.rmRF(tempDir);
-  //   } catch {
-  //     console.log("Failed to remove test directories");
-  //   }
-  // });
+  afterAll(async () => {
+    try {
+      await io.rmRF(toolDir);
+      await io.rmRF(tempDir);
+    } catch {
+      console.log("Failed to remove test directories");
+    }
+  });
 
   it("Downloads version of protoc if no matching version is installed", async () => {
     await installer.getProtoc("3.9.0");
