@@ -29,7 +29,7 @@ import io = require("@actions/io");
 let osPlat: string = os.platform();
 let osArch: string = os.arch();
 
-interface ITaskRef {
+interface IProtocRef {
   ref: string;
 }
 
@@ -73,15 +73,6 @@ async function downloadRelease(version: string): Promise<string> {
   // Extract
   let extPath: string = await tc.extractZip(downloadPath);
 
-  // if (osPlat == 'win32') {
-  //     await io.mv(path.join(extPath, 'protoc.exe'), path.join(extPath, 'bin'))
-  // } else {
-  //     extPath = await tc.extractTar(downloadPath);
-  //     // Create a bin/ folder and move `task` there
-  //     await io.mkdirP(path.join(extPath, 'bin'))
-  //     await io.mv(path.join(extPath, 'task'), path.join(extPath, 'bin'))
-  // }
-
   // Install into the local tool cache - node extracts with a root folder that matches the fileName downloaded
   return await tc.cacheDir(extPath, "protoc", version);
 }
@@ -106,9 +97,9 @@ function getFileName(version: string): string {
 
 // Retrieve a list of versions scraping tags from the Github API
 async function fetchVersions(): Promise<string[]> {
-  let rest: restm.RestClient = new restm.RestClient("setup-taskfile");
-  let tags: ITaskRef[] =
-    (await rest.get<ITaskRef[]>(
+  let rest: restm.RestClient = new restm.RestClient("setup-protoc");
+  let tags: IProtocRef[] =
+    (await rest.get<IProtocRef[]>(
       "https://api.github.com/repos/protocolbuffers/protobuf/git/refs/tags"
     )).result || [];
 

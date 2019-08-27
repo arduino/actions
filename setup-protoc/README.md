@@ -4,7 +4,7 @@ This action makes the `protoc` compiler available to Workflows.
 
 ## Usage
 
-To get the latest stable version of Task just add this step:
+To get the latest stable version of `protoc` just add this step:
 
 ```yaml
 - name: Install Protoc

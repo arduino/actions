@@ -14,21 +14,21 @@ process.env["RUNNER_TOOL_CACHE"] = toolDir;
 import * as installer from "../src/installer";
 
 describe("installer tests", () => {
-  beforeEach(async function() {
+  beforeEach(async function () {
     await io.rmRF(toolDir);
     await io.rmRF(tempDir);
     await io.mkdirP(toolDir);
     await io.mkdirP(tempDir);
   });
 
-  afterAll(async () => {
-    try {
-      await io.rmRF(toolDir);
-      await io.rmRF(tempDir);
-    } catch {
-      console.log("Failed to remove test directories");
-    }
-  });
+  // afterAll(async () => {
+  //   try {
+  //     await io.rmRF(toolDir);
+  //     await io.rmRF(tempDir);
+  //   } catch {
+  //     console.log("Failed to remove test directories");
+  //   }
+  // });
 
   it("Downloads version of protoc if no matching version is installed", async () => {
     await installer.getProtoc("3.9.0");
