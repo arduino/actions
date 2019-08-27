@@ -3,8 +3,8 @@ description: 'Download protoc compiler and add it to the PATH'
 author: 'Arduino'
 inputs:
   version:
-    description: 'Version to use. Example: 2.6.0'
-    default: '2.x'
+    description: 'Version to use. Example: 3.9.1'
+    default: '3.x'
 runs:
   using: 'node12'
   main: 'lib/main.js'
