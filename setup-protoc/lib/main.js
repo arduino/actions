@@ -21,12 +21,8 @@ function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             let version = core.getInput("version");
-            if (!version) {
-                version = "2.x";
-            }
-            if (version) {
-                yield installer.getProtoc(version);
-            }
+            let includePreReleases = convertToBoolean(core.getInput("include-pre-releses"));
+            yield installer.getProtoc(version, includePreReleases);
         }
         catch (error) {
             core.setFailed(error.message);
@@ -34,3 +30,11 @@ function run() {
     });
 }
 run();
+function convertToBoolean(input) {
+    try {
+        return JSON.parse(input);
+    }
+    catch (e) {
+        return false;
+    }
+}

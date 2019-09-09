@@ -44,10 +44,10 @@ const exc = __importStar(require("@actions/exec"));
 const io = __importStar(require("@actions/io"));
 let osPlat = os.platform();
 let osArch = os.arch();
-function getProtoc(version) {
+function getProtoc(version, includePreReleases) {
     return __awaiter(this, void 0, void 0, function* () {
         // resolve the version number
-        const targetVersion = yield computeVersion(version);
+        const targetVersion = yield computeVersion(version, includePreReleases);
         if (targetVersion) {
             version = targetVersion;
         }
@@ -118,17 +118,18 @@ function getFileName(version) {
     return filename;
 }
 // Retrieve a list of versions scraping tags from the Github API
-function fetchVersions() {
+function fetchVersions(includePreReleases) {
     return __awaiter(this, void 0, void 0, function* () {
         let rest = new restm.RestClient("setup-protoc");
-        let tags = (yield rest.get("https://api.github.com/repos/protocolbuffers/protobuf/git/refs/tags")).result || [];
+        let tags = (yield rest.get("https://api.github.com/repos/protocolbuffers/protobuf/releases")).result || [];
         return tags
-            .filter(tag => tag.ref.match(/v\d+\.[\w\.]+/g))
-            .map(tag => tag.ref.replace("refs/tags/v", ""));
+            .filter(tag => tag.tag_name.match(/v\d+\.[\w\.]+/g))
+            .filter(tag => includePrerelease(tag.prerelease, includePreReleases))
+            .map(tag => tag.tag_name.replace("v", ""));
     });
 }
 // Compute an actual version starting from the `version` configuration param.
-function computeVersion(version) {
+function computeVersion(version, includePreReleases) {
     return __awaiter(this, void 0, void 0, function* () {
         // strip leading `v` char (will be re-added later)
         if (version.startsWith("v")) {
@@ -138,7 +139,7 @@ function computeVersion(version) {
         if (version.endsWith(".x")) {
             version = version.slice(0, version.length - 2);
         }
-        const allVersions = yield fetchVersions();
+        const allVersions = yield fetchVersions(includePreReleases);
         const validVersions = allVersions.filter(v => semver.valid(v));
         const possibleVersions = validVersions.filter(v => v.startsWith(version));
         const versionMap = new Map();
@@ -192,4 +193,12 @@ function normalizeVersion(version) {
         }
     }
     return version;
+}
+function includePrerelease(isPrerelease, includePrereleases) {
+    if (!includePrereleases) {
+        if (isPrerelease) {
+            return false;
+        }
+    }
+    return true;
 }
