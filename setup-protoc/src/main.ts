@@ -4,13 +4,9 @@ import * as installer from "./installer";
 async function run() {
   try {
     let version = core.getInput("version");
-    if (!version) {
-      version = "2.x";
-    }
 
-    if (version) {
-      await installer.getProtoc(version);
-    }
+    await installer.getProtoc(version);
+
   } catch (error) {
     core.setFailed(error.message);
   }
