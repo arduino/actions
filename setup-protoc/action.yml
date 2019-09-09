@@ -7,7 +7,7 @@ inputs:
     default: '3.x'
   include-pre-releases:
     description: 'Include github pre-releases in latest version calculation'
-    default: false
+    default: 'false'
 runs:
   using: 'node12'
   main: 'lib/main.js'

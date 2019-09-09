@@ -211,7 +211,7 @@ function normalizeVersion(version: string): string {
   return version;
 }
 
-function includePrerelease(isPrerelease: boolean, includePrereleases: boolean){
+function includePrerelease(isPrerelease: boolean, includePrereleases: boolean): boolean{
     if (!includePrereleases){
       if (isPrerelease){
         return false;
