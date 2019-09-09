@@ -85,4 +85,31 @@ describe("installer tests", () => {
       }
     }, 100000);
   });
+
+  describe("Gets the latest release of protoc with broken latest rc tag", () => {
+    beforeEach(() => {
+      nock("https://api.github.com")
+        .get("/repos/protocolbuffers/protobuf/git/refs/tags")
+        .replyWithFile(200, path.join(dataDir, "tags-broken-rc-tag.json"));
+    });
+
+    afterEach(() => {
+      nock.cleanAll();
+      nock.enableNetConnect();
+    });
+
+    it("Gets latest version of protoc using 3.x with a broken rc tag, but filtering pre-releases", async () => {
+      await installer.getProtoc("3.x");
+      const protocDir = path.join(toolDir, "protoc", "3.9.1", os.arch());
+
+      expect(fs.existsSync(`${protocDir}.complete`)).toBe(true);
+      if (IS_WINDOWS) {
+        expect(fs.existsSync(path.join(protocDir, "bin", "protoc.exe"))).toBe(
+          true
+        );
+      } else {
+        expect(fs.existsSync(path.join(protocDir, "bin", "protoc"))).toBe(true);
+      }
+    }, 100000);
+  });
 });
