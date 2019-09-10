@@ -20,6 +20,16 @@ If you want to pin a major or minor version you can use the `.x` wildcard:
     version: '3.x'
 ```
 
+You can also require to include releases marked as `pre-release` in Github using the `include-pre-releases` flag (the dafault value for this flag is `false`)
+
+```yaml
+- name: Install Protoc
+  uses: Arduino/actions/setup-protoc@master
+  with:
+    version: '3.x'
+    include-pre-releases: true
+```
+
 To pin the exact version:
 
 ```yaml
