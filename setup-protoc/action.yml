@@ -5,6 +5,9 @@ inputs:
   version:
     description: 'Version to use. Example: 3.9.1'
     default: '3.x'
+  include-pre-releases:
+    description: 'Include github pre-releases in latest version calculation'
+    default: 'false'
 runs:
   using: 'node12'
   main: 'lib/main.js'

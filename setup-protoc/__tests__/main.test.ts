@@ -31,7 +31,7 @@ describe("installer tests", () => {
   });
 
   it("Downloads version of protoc if no matching version is installed", async () => {
-    await installer.getProtoc("3.9.0");
+    await installer.getProtoc("3.9.0", true);
     const protocDir = path.join(toolDir, "protoc", "3.9.0", os.arch());
 
     expect(fs.existsSync(`${protocDir}.complete`)).toBe(true);
@@ -48,8 +48,8 @@ describe("installer tests", () => {
   describe("Gets the latest release of protoc", () => {
     beforeEach(() => {
       nock("https://api.github.com")
-        .get("/repos/protocolbuffers/protobuf/git/refs/tags")
-        .replyWithFile(200, path.join(dataDir, "tags.json"));
+        .get("/repos/protocolbuffers/protobuf/releases")
+        .replyWithFile(200, path.join(dataDir, "releases.json"));
     });
 
     afterEach(() => {
@@ -58,7 +58,7 @@ describe("installer tests", () => {
     });
 
     it("Gets the latest 3.7.x version of protoc using 3.7 and no matching version is installed", async () => {
-      await installer.getProtoc("3.7");
+      await installer.getProtoc("3.7", true);
       const protocDir = path.join(toolDir, "protoc", "3.7.1", os.arch());
 
       expect(fs.existsSync(`${protocDir}.complete`)).toBe(true);
@@ -72,7 +72,34 @@ describe("installer tests", () => {
     }, 100000);
 
     it("Gets latest version of protoc using 3.x and no matching version is installed", async () => {
-      await installer.getProtoc("3.x");
+      await installer.getProtoc("3.x", true);
+      const protocDir = path.join(toolDir, "protoc", "3.9.1", os.arch());
+
+      expect(fs.existsSync(`${protocDir}.complete`)).toBe(true);
+      if (IS_WINDOWS) {
+        expect(fs.existsSync(path.join(protocDir, "bin", "protoc.exe"))).toBe(
+          true
+        );
+      } else {
+        expect(fs.existsSync(path.join(protocDir, "bin", "protoc"))).toBe(true);
+      }
+    }, 100000);
+  });
+
+  describe("Gets the latest release of protoc with broken latest rc tag", () => {
+    beforeEach(() => {
+      nock("https://api.github.com")
+        .get("/repos/protocolbuffers/protobuf/releases")
+        .replyWithFile(200, path.join(dataDir, "releases-broken-rc-tag.json"));
+    });
+
+    afterEach(() => {
+      nock.cleanAll();
+      nock.enableNetConnect();
+    });
+
+    it("Gets latest version of protoc using 3.x with a broken rc tag, filtering pre-releases", async () => {
+      await installer.getProtoc("3.x", false);
       const protocDir = path.join(toolDir, "protoc", "3.9.1", os.arch());
 
       expect(fs.existsSync(`${protocDir}.complete`)).toBe(true);

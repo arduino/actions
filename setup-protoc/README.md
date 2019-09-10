@@ -20,6 +20,16 @@ If you want to pin a major or minor version you can use the `.x` wildcard:
     version: '3.x'
 ```
 
+You can also require to include releases marked as `pre-release` in Github using the `include-pre-releases` flag (the dafault value for this flag is `false`)
+
+```yaml
+- name: Install Protoc
+  uses: Arduino/actions/setup-protoc@master
+  with:
+    version: '3.x'
+    include-pre-releases: true
+```
+
 To pin the exact version:
 
 ```yaml
@@ -43,6 +53,13 @@ To run the tests:
 # npm run test
 ```
 
+## Enable verbose logging for a pipeline
+Additional log events with the prefix ::debug:: can be enabled by setting the secret `ACTIONS_STEP_DEBUG` to `true`.
+
+See [step-debug-logs](https://github.com/actions/toolkit/blob/master/docs/action-debugging.md#step-debug-logs) for reference.
+
+
+
 ## Release
 
 We check in the `node_modules` to provide runtime dependencies to the system
@@ -52,7 +69,7 @@ Action the workflow should be the following:
 
 1. `npm install` to add all the dependencies, included development.
 1. `npm run test` to see everything works as expected.
-1. `npm build` to build the Action under the `./lib` folder.
+1. `npm run build` to build the Action under the `./lib` folder.
 1. `rm -rf node_modules` to remove all the dependencies.
 1. `npm install --production` to add back **only** the runtime dependencies.
 1. `git add lib node_modules` to check in the code that matters.

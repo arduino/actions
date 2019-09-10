@@ -27,17 +27,17 @@ import * as tc from "@actions/tool-cache";
 import * as exc from "@actions/exec";
 import * as io from "@actions/io";
 
-
 let osPlat: string = os.platform();
 let osArch: string = os.arch();
 
-interface IProtocRef {
-  ref: string;
+interface IProtocRelease {
+  tag_name: string;
+  prerelease: boolean;
 }
 
-export async function getProtoc(version: string) {
+export async function getProtoc(version: string, includePreReleases: boolean) {
   // resolve the version number
-  const targetVersion = await computeVersion(version);
+  const targetVersion = await computeVersion(version, includePreReleases);
   if (targetVersion) {
     version = targetVersion;
   }
@@ -122,20 +122,24 @@ function getFileName(version: string): string {
 }
 
 // Retrieve a list of versions scraping tags from the Github API
-async function fetchVersions(): Promise<string[]> {
+async function fetchVersions(includePreReleases: boolean): Promise<string[]> {
   let rest: restm.RestClient = new restm.RestClient("setup-protoc");
-  let tags: IProtocRef[] =
-    (await rest.get<IProtocRef[]>(
-      "https://api.github.com/repos/protocolbuffers/protobuf/git/refs/tags"
+  let tags: IProtocRelease[] =
+    (await rest.get<IProtocRelease[]>(
+      "https://api.github.com/repos/protocolbuffers/protobuf/releases"
     )).result || [];
 
   return tags
-    .filter(tag => tag.ref.match(/v\d+\.[\w\.]+/g))
-    .map(tag => tag.ref.replace("refs/tags/v", ""));
+    .filter(tag => tag.tag_name.match(/v\d+\.[\w\.]+/g))
+    .filter(tag => includePrerelease(tag.prerelease, includePreReleases))
+    .map(tag => tag.tag_name.replace("v", ""));
 }
 
 // Compute an actual version starting from the `version` configuration param.
-async function computeVersion(version: string): Promise<string> {
+async function computeVersion(
+  version: string,
+  includePreReleases: boolean
+): Promise<string> {
   // strip leading `v` char (will be re-added later)
   if (version.startsWith("v")) {
     version = version.slice(1, version.length);
@@ -146,7 +150,7 @@ async function computeVersion(version: string): Promise<string> {
     version = version.slice(0, version.length - 2);
   }
 
-  const allVersions = await fetchVersions();
+  const allVersions = await fetchVersions(includePreReleases);
   const validVersions = allVersions.filter(v => semver.valid(v));
   const possibleVersions = validVersions.filter(v => v.startsWith(version));
 
@@ -207,4 +211,11 @@ function normalizeVersion(version: string): string {
   }
 
   return version;
+}
+
+function includePrerelease(
+  isPrerelease: boolean,
+  includePrereleases: boolean
+): boolean {
+  return includePrereleases || !isPrerelease;
 }
