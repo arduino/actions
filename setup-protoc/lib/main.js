@@ -21,7 +21,7 @@ function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             let version = core.getInput("version");
-            let includePreReleases = convertToBoolean(core.getInput("include-pre-releses"));
+            let includePreReleases = convertToBoolean(core.getInput("include-pre-releases"));
             yield installer.getProtoc(version, includePreReleases);
         }
         catch (error) {
