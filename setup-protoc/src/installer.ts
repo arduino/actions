@@ -217,10 +217,5 @@ function includePrerelease(
   isPrerelease: boolean,
   includePrereleases: boolean
 ): boolean {
-  if (!includePrereleases) {
-    if (isPrerelease) {
-      return false;
-    }
-  }
-  return true;
+  return includePrereleases || !isPrerelease;
 }
