@@ -4,7 +4,7 @@ import * as installer from "./installer";
 async function run() {
   try {
     let version = core.getInput("version");
-    let includePreReleases = convertToBoolean(core.getInput("include-pre-releses"));
+    let includePreReleases = convertToBoolean(core.getInput("include-pre-releases"));
     await installer.getProtoc(version, includePreReleases);
 
   } catch (error) {
