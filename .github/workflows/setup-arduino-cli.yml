@@ -1,4 +1,4 @@
-name: setup-protoc workflow
+name: setup-arduino-cli workflow
 
 on: [push]
 
