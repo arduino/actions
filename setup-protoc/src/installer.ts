@@ -27,7 +27,6 @@ import * as tc from "@actions/tool-cache";
 import * as exc from "@actions/exec";
 import * as io from "@actions/io";
 
-
 let osPlat: string = os.platform();
 let osArch: string = os.arch();
 
