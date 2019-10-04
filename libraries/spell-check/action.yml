@@ -1,0 +1,11 @@
+name: 'Arduino Libraries - Spell Check'
+description: 'Runs codespell on library source code and examples contained in the library'
+inputs:
+  ignore-words-list:
+    description: 'File path of list of words to ignore'
+    default: ''
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.ignore-words-list }}
