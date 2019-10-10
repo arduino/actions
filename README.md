@@ -1,9 +1,9 @@
 # Arduino GitHub Actions
 
-This repository contains a set of GitHub Actions officially provided and maintained
-by Arduino. Usage informations can be found in their respective folders.
+A set of GitHub Actions officially provided and maintained by Arduino. Usage
+informations can be found in their respective folders.
 
-* [setup-arduino-cli](./setup-arduino-cli) makes the
+* [setup-arduino-cli](https://github.com/arduino/setup-arduino-cli) makes the
 [Arduino CLI](https://github.com/Arduino/arduino-cli)
 available to your Workflows.
 
