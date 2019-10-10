@@ -4,6 +4,8 @@ author: 'Arduino'
 inputs:
   version:
     description: 'Version to use. Example: 0.5.0'
+    deprecationMessage: 'This action is deprecated, please use arduino/setup-arduino-cli
+ instead'
     default: '0.x'
 runs:
   using: 'node12'
