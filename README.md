@@ -7,7 +7,7 @@ informations can be found in their respective folders.
 [Arduino CLI](https://github.com/Arduino/arduino-cli)
 available to your Workflows.
 
-* [setup-protoc](./setup-protoc) makes the
+* [setup-protoc](https://github.com/arduino/setup-protoc) makes the
 [protobuf compiler](https://github.com/protocolbuffers/protobuf)
 available to your Workflows.
 
