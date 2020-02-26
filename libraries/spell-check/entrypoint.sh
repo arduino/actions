@@ -1,6 +1,6 @@
 #!/bin/bash
 
-IGNORE_WORDS_LIST="$1"
+readonly IGNORE_WORDS_LIST="$1"
 
 CODE_SPELL_ARGS="--skip=.git"
 
