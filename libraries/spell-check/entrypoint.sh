@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 
 IGNORE_WORDS_LIST=$1
 
