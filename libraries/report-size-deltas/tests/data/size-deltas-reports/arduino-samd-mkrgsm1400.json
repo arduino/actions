@@ -1,0 +1,10 @@
+{
+  "fqbn": "arduino:samd:mkrgsm1400",
+  "sketch": "examples/ConnectionHandlerDemo",
+  "previous_flash": "N/A",
+  "flash": 51636,
+  "flash_delta": "N/A",
+  "previous_ram": "N/A",
+  "ram": 5104,
+  "ram_delta": "N/A"
+}

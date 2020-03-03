@@ -1,0 +1,12 @@
+name: 'Arduino Libraries - Report Size Deltas'
+description: 'Comments on the pull request with a report on the change in memory usage of an example sketch'
+inputs:
+  size-deltas-reports-artifact-name:
+    description: 'Name of the workflow artifact that contains the memory usage data, as specified to the actions/upload-artifact action via the name argument'
+    default: 'size-deltas-reports'
+  github-token:
+    description: 'GitHub access token used to comment the memory usage comparison results to the PR thread'
+    default: ${{ github.token }}
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
