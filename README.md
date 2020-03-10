@@ -13,3 +13,5 @@ available to your Workflows.
 
 * [setup-taskfile](./setup-taskfile) makes [Taskfile](https://taskfile.dev/#/)
 available to your Workflows.
+
+[Sample GitHub workflow scripts](https://github.com/ArminJo/Github-Actions) to test compilation of Arduino libraries using the [setup-arduino-cli](https://github.com/arduino/setup-arduino-cli) action.
