@@ -5,4 +5,4 @@ COPY reportsizedeltas.py /reportsizedeltas.py
 RUN ["chmod", "+x", "reportsizedeltas.py"]
 
 # Code file to execute when the docker container starts up
-ENTRYPOINT ["python", "reportsizedeltas.py"]
+ENTRYPOINT ["python", "/reportsizedeltas.py"]
