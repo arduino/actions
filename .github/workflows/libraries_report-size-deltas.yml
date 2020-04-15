@@ -1,0 +1,21 @@
+name: libraries/report-size-deltas workflow
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v1
+        with:
+          python-version: '3.8.2'
+
+      - name: Run Python unit tests
+        run: |
+          export PYTHONPATH="$GITHUB_WORKSPACE/libraries/report-size-deltas"
+          python -m unittest discover "$GITHUB_WORKSPACE/libraries/report-size-deltas/tests"
