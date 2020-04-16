@@ -106,10 +106,18 @@ Only compiling examples:
 
 Storing the memory usage change report as a [workflow artifact](https://help.github.com/en/actions/configuring-and-managing-workflows/persisting-workflow-data-using-artifacts):
 ```yaml
+- uses: actions/checkout@v2
+
+# this step is only required when using actions/checkout@v2 and the size deltas report feature
+- name: Fetch PR base branch
+  if: github.event_name == 'pull_request'
+  run: git fetch --no-tags --prune --depth=1 origin +${{ github.base_ref }}
+
 - uses: arduino/actions/libraries/compile-examples@master
   with:
     size-report-sketch: Foobar
     enable-size-deltas-report: true
+
 - if: github.event_name == 'pull_request'
   uses: actions/upload-artifact@v1
   with:
