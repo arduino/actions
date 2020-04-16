@@ -6,7 +6,7 @@ This action comments on the pull request with a report on the change in memory u
 
 ### `size-deltas-reports-artifact-name`
 
-Name of the workflow artifact that contains the memory usage data, as specified to the actions/upload-artifact action via the name argument
+Name of the workflow artifact that contains the memory usage data, as specified to the actions/upload-artifact action via the name argument. Default "size-deltas-reports".
 
 ### `github-token`
 
