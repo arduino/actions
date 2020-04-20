@@ -16,10 +16,16 @@ repository for commonly misspelled words.
 * [setup-arduino-cli](https://github.com/arduino/setup-arduino-cli) makes the
 [Arduino CLI](https://github.com/Arduino/arduino-cli)
 available to your Workflows.
+  * **WARNING**: The `arduino/actions/setup-arduino-cli` action contained in this
+  repository is deprecated. Please use the actively maintained
+  `arduino/setup-arduino-cli` action at the link above.
 
 * [setup-protoc](https://github.com/arduino/setup-protoc) makes the
 [protobuf compiler](https://github.com/protocolbuffers/protobuf)
 available to your Workflows.
+  * **WARNING**: The `arduino/actions/setup-protoc` action contained in this
+  repository is deprecated. Please use the actively maintained
+  `arduino/setup-protoc` action at the link above.
 
 * [setup-taskfile](./setup-taskfile) makes [Taskfile](https://taskfile.dev/#/)
 available to your Workflows.
