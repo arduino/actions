@@ -1,7 +1,13 @@
 # Arduino GitHub Actions
 
-A set of GitHub Actions officially provided and maintained by Arduino. Usage
-informations can be found in their respective folders.
+**WARNING**: This repository is used for Arduino's development of experimental
+[GitHub Actions](https://github.com/features/actions). They are unstable and not
+fully tested. Use at your own risk!
+
+Actions will be moved to dedicated repositories when they are ready for
+production usage.
+
+Usage informations can be found in their respective folders.
 
 * [libraries/compile-examples](./libraries/compile-examples) uses Arduino CLI to
 do compilation testing of your Arduino library.
