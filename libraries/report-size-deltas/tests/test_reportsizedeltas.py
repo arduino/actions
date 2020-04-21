@@ -196,7 +196,8 @@ class TestReportsizedeltas(unittest.TestCase):
 
         artifact_folder_object = tempfile.TemporaryDirectory(prefix="test_reportsizedeltas-")
         try:
-            distutils.dir_util.copy_tree(src=os.path.dirname(os.path.realpath(__file__)) + "/data/size-deltas-reports", dst=artifact_folder_object.name)
+            distutils.dir_util.copy_tree(src=os.path.dirname(os.path.realpath(__file__)) + "/data/size-deltas-reports",
+                                         dst=artifact_folder_object.name)
         except Exception:
             artifact_folder_object.cleanup()
             raise
