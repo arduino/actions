@@ -205,15 +205,15 @@ class TestReportsizedeltas(unittest.TestCase):
         report = report_size_deltas.generate_report(artifact_folder_object=artifact_folder_object,
                                                     pr_head_sha=pr_head_sha, pr_number=pr_number)
         report_markdown = (
-                report_size_deltas.report_key_beginning + pr_head_sha
-                + "](https://github.com/" + repository_name + "/pull/" + str(pr_number) + "/commits/" + pr_head_sha
-                + ")**\n\n"
-                "FQBN | Flash Usage | RAM For Global Variables\n"
-                "---|---|---\n"
-                "adafruit:samd:adafruit_feather_m0 | 0 | N/A\n"
-                "arduino:samd:mkrgsm1400 | N/A | N/A\n"
-                "arduino:samd:mkrnb1500 | :green_heart: -24 | 0\n"
-                "esp8266:esp8266:huzzah | :small_red_triangle: +32 | :small_red_triangle: +16")
+            report_size_deltas.report_key_beginning + pr_head_sha
+            + "](https://github.com/" + repository_name + "/pull/" + str(pr_number) + "/commits/" + pr_head_sha
+            + ")**\n\n"
+              "FQBN | Flash Usage | RAM For Global Variables\n"
+              "---|---|---\n"
+              "adafruit:samd:adafruit_feather_m0 | 0 | N/A\n"
+              "arduino:samd:mkrgsm1400 | N/A | N/A\n"
+              "arduino:samd:mkrnb1500 | :green_heart: -24 | 0\n"
+              "esp8266:esp8266:huzzah | :small_red_triangle: +32 | :small_red_triangle: +16")
         self.assertEqual(report_markdown, report["markdown"])
 
         report_data = [{'flash': 10580,
