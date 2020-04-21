@@ -416,6 +416,14 @@ class TestReportsizedeltas(unittest.TestCase):
             exception=urllib.error.HTTPError(None, 404, "Not Found", None, None)))
 
     # @unittest.skip("")
+    def test_get_page_count(self):
+        page_count = 4
+        link_header = ('<https://api.github.com/repositories/919161/pulls?page=2>; rel="next", '
+                       '"<https://api.github.com/repositories/919161/pulls?page=' + str(page_count) + '>; rel="last"')
+
+        self.assertEqual(page_count, reportsizedeltas.get_page_count(link_header=link_header))
+
+    # @unittest.skip("")
     def test_generate_value_cell(self):
         self.assertEqual(" | :small_red_triangle: +42", reportsizedeltas.generate_value_cell(42))
         self.assertEqual(" | 0", reportsizedeltas.generate_value_cell(0))

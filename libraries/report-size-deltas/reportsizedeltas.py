@@ -306,21 +306,11 @@ class ReportSizeDeltas:
                 page_count = 0
                 additional_pages = False
             else:
-                page_count = 1
-                additional_pages = False
-
-                if response_data["headers"]["Link"] is not None:
-                    # Get the pagination data
-                    if response_data["headers"]["Link"].find(">; rel=\"next\"") != -1:
-                        additional_pages = True
-                    for link in response_data["headers"]["Link"].split(","):
-                        if link[-13:] == ">; rel=\"last\"":
-                            link = re.split("[?&>]", link)
-                            for parameter in link:
-                                if parameter[:5] == "page=":
-                                    page_count = int(parameter.split("=")[1])
-                                    break
-                            break
+                page_count = get_page_count(link_header=response_data["headers"]["Link"])
+                if page_count > 1:
+                    additional_pages = True
+                else:
+                    additional_pages = False
 
             return {"json_data": json_data, "additional_pages": additional_pages, "page_count": page_count}
         except Exception as exception:
@@ -441,6 +431,26 @@ def determine_urlopen_retry(exception):
         logger.error(exception)
         logger.info("HTTP Error 401 may be caused by providing an incorrect GitHub personal access token.")
     return False
+
+
+def get_page_count(link_header):
+    """Return the number of pages of the API response
+
+    Keyword arguments:
+    link_header -- Link header of the HTTP response
+    """
+    page_count = 1
+    if link_header is not None:
+        # Get the pagination data
+        for link in link_header.split(","):
+            if link[-13:] == ">; rel=\"last\"":
+                link = re.split("[?&>]", link)
+                for parameter in link:
+                    if parameter[:5] == "page=":
+                        page_count = int(parameter.split("=")[1])
+                        break
+                break
+    return page_count
 
 
 def generate_value_cell(value):
