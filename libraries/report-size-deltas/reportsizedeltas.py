@@ -121,8 +121,8 @@ class ReportSizeDeltas:
         page_number = 1
         page_count = 1
         while page_number <= page_count:
-            api_data = self.api_request(request="repos/" + self.repository_name + "/issues/" + str(pr_number) +
-                                                "/comments",
+            api_data = self.api_request(request="repos/" + self.repository_name + "/issues/" + str(pr_number)
+                                                + "/comments",
                                         page_number=page_number)
 
             comments_data = api_data["json_data"]
@@ -150,8 +150,8 @@ class ReportSizeDeltas:
         page_count = 1
         while page_number <= page_count:
             api_data = self.api_request(request="repos/" + self.repository_name + "/actions/runs",
-                                        request_parameters="actor=" + pr_user_login + "&branch=" + pr_head_ref +
-                                                           "&event=pull_request&status=completed",
+                                        request_parameters="actor=" + pr_user_login + "&branch=" + pr_head_ref
+                                                           + "&event=pull_request&status=completed",
                                         page_number=page_number)
             runs_data = api_data["json_data"]
 
@@ -179,8 +179,8 @@ class ReportSizeDeltas:
         page_number = 1
         page_count = 1
         while page_number <= page_count:
-            api_data = self.api_request(request="repos/" + self.repository_name + "/actions/runs/" +
-                                                str(run_id) + "/artifacts",
+            api_data = self.api_request(request="repos/" + self.repository_name + "/actions/runs/"
+                                                + str(run_id) + "/artifacts",
                                         page_number=page_number)
             artifacts_data = api_data["json_data"]
 
@@ -230,19 +230,19 @@ class ReportSizeDeltas:
         artifact_folder_object -- object containing the data about the temporary folder that stores the markdown files
         """
         with artifact_folder_object as artifact_folder:
-            report_markdown = (self.report_key_beginning + pr_head_sha + "]" +
-                               "(https://github.com/" + self.repository_name + "/pull/" + str(pr_number) +
-                               "/commits/" + pr_head_sha + ")**\n\n")
+            report_markdown = (self.report_key_beginning + pr_head_sha + "]"
+                               + "(https://github.com/" + self.repository_name + "/pull/" + str(pr_number)
+                               + "/commits/" + pr_head_sha + ")**\n\n")
             report_markdown = report_markdown + "FQBN | Flash Usage | RAM For Global Variables\n---|---|---"
             reports_data = []
             for report_filename in sorted(os.listdir(path=artifact_folder)):
                 with open(file=artifact_folder + "/" + report_filename) as report_file:
                     report_data = json.load(report_file)
                     reports_data = reports_data + [report_data]
-                    report_markdown = (report_markdown + "\n" +
-                                       report_data["fqbn"] +
-                                       generate_value_cell(report_data["flash_delta"]) +
-                                       generate_value_cell(report_data["ram_delta"]))
+                    report_markdown = (report_markdown + "\n"
+                                       + report_data["fqbn"]
+                                       + generate_value_cell(report_data["flash_delta"])
+                                       + generate_value_cell(report_data["ram_delta"]))
 
         logger.debug("Report:\n" + report_markdown)
         return {"markdown": report_markdown, "data": reports_data}
@@ -257,11 +257,11 @@ class ReportSizeDeltas:
         report_data = {"body": report_markdown}
         report_data = json.dumps(obj=report_data)
         report_data = report_data.encode(encoding="utf-8")
-        url = ("https://api.github.com/repos/" +
-               self.repository_name +
-               "/issues/" +
-               str(pr_number) +
-               "/comments")
+        url = ("https://api.github.com/repos/"
+               + self.repository_name
+               + "/issues/"
+               + str(pr_number)
+               + "/comments")
 
         self.http_request(url=url, data=report_data)
 
@@ -278,8 +278,8 @@ class ReportSizeDeltas:
         page_number -- Some responses will be paginated. This argument specifies which page should be returned.
                        (default value: 1)
         """
-        return self.get_json_response(url="https://api.github.com/" + request + "?" + request_parameters + "&page=" +
-                                          str(page_number) + "&per_page=100")
+        return self.get_json_response(url="https://api.github.com/" + request + "?" + request_parameters + "&page="
+                                          + str(page_number) + "&per_page=100")
 
     def get_json_response(self, url):
         """Load the specified URL and return a dictionary:

@@ -99,8 +99,8 @@ class TestReportsizedeltas(unittest.TestCase):
 
         self.assertTrue(report_size_deltas.report_exists(pr_number=pr_number, pr_head_sha=pr_head_sha))
 
-        report_size_deltas.api_request.assert_called_once_with(request="repos/" + repository_name + "/issues/" +
-                                                                       str(pr_number) + "/comments",
+        report_size_deltas.api_request.assert_called_once_with(request="repos/" + repository_name + "/issues/"
+                                                                       + str(pr_number) + "/comments",
                                                                page_number=1)
 
         self.assertFalse(report_size_deltas.report_exists(pr_number=pr_number, pr_head_sha="asdf"))
@@ -129,8 +129,8 @@ class TestReportsizedeltas(unittest.TestCase):
 
         # Test pagination
         request = "repos/" + repository_name + "/actions/runs"
-        request_parameters = ("actor=" + pr_user_login + "&branch=" + pr_head_ref +
-                              "&event=pull_request&status=completed")
+        request_parameters = ("actor=" + pr_user_login + "&branch=" + pr_head_ref
+                              + "&event=pull_request&status=completed")
         calls = [unittest.mock.call(request=request, request_parameters=request_parameters, page_number=1),
                  unittest.mock.call(request=request, request_parameters=request_parameters, page_number=2),
                  unittest.mock.call(request=request, request_parameters=request_parameters, page_number=3)]
@@ -170,8 +170,8 @@ class TestReportsizedeltas(unittest.TestCase):
         self.assertEqual(archive_download_url, report_size_deltas.get_artifact_download_url_for_run(run_id=run_id))
 
         report_size_deltas.api_request.assert_called_once_with(
-            request="repos/" + repository_name + "/actions/runs/" + str(run_id) +
-                    "/artifacts",
+            request="repos/" + repository_name + "/actions/runs/" + str(run_id)
+                    + "/artifacts",
             page_number=1)
 
         json_data = {"artifacts": [{"name": "foo123", "archive_download_url": "test_artifact_url"},
@@ -204,9 +204,9 @@ class TestReportsizedeltas(unittest.TestCase):
         report = report_size_deltas.generate_report(artifact_folder_object=artifact_folder_object,
                                                     pr_head_sha=pr_head_sha, pr_number=pr_number)
         report_markdown = (
-                report_size_deltas.report_key_beginning + pr_head_sha +
-                "](https://github.com/" + repository_name + "/pull/" + str(pr_number) + "/commits/" + pr_head_sha +
-                ")**\n\n"
+                report_size_deltas.report_key_beginning + pr_head_sha
+                + "](https://github.com/" + repository_name + "/pull/" + str(pr_number) + "/commits/" + pr_head_sha
+                + ")**\n\n"
                 "FQBN | Flash Usage | RAM For Global Variables\n"
                 "---|---|---\n"
                 "adafruit:samd:adafruit_feather_m0 | 0 | N/A\n"
@@ -266,8 +266,8 @@ class TestReportsizedeltas(unittest.TestCase):
         report_data = report_data.encode(encoding="utf-8")
 
         report_size_deltas.http_request.assert_called_once_with(
-            url="https://api.github.com/repos/" + repository_name + "/issues/" +
-                str(pr_number) + "/comments",
+            url="https://api.github.com/repos/" + repository_name + "/issues/"
+                + str(pr_number) + "/comments",
             data=report_data)
 
     # @unittest.skip("")
@@ -287,8 +287,8 @@ class TestReportsizedeltas(unittest.TestCase):
                                                                        request_parameters=request_parameters,
                                                                        page_number=page_number))
         report_size_deltas.get_json_response.assert_called_once_with(
-            url="https://api.github.com/" + request + "?" + request_parameters +
-                "&page=" + str(page_number) + "&per_page=100")
+            url="https://api.github.com/" + request + "?" + request_parameters
+                + "&page=" + str(page_number) + "&per_page=100")
 
     # @unittest.skip("")
     def test_get_json_response(self):
