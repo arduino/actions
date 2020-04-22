@@ -1,21 +1,25 @@
 import distutils.dir_util
+import json
+import os
+import tempfile
 import unittest.mock
+import urllib
 
-from reportsizedeltas import *
+import reportsizedeltas
 
 
 # noinspection PyUnresolvedReferences
 class TestReportsizedeltas(unittest.TestCase):
     # NOTE: the tests are run in order sorted by method name, not in the order below
 
-    set_verbosity(enable_verbosity=False)
+    reportsizedeltas.set_verbosity(enable_verbosity=False)
 
     # @unittest.skip("")
     def test_set_verbosity(self):
         with self.assertRaises(TypeError):
-            set_verbosity(enable_verbosity=2)
-        set_verbosity(enable_verbosity=True)
-        set_verbosity(enable_verbosity=False)
+            reportsizedeltas.set_verbosity(enable_verbosity=2)
+        reportsizedeltas.set_verbosity(enable_verbosity=True)
+        reportsizedeltas.set_verbosity(enable_verbosity=False)
 
     # @unittest.skip("")
     def test_report_size_deltas(self):
@@ -24,7 +28,8 @@ class TestReportsizedeltas(unittest.TestCase):
         artifact_folder_object = "test_artifact_folder_object"
         report = {"markdown": "test_markdown", "data": "test_data"}
 
-        report_size_deltas = ReportSizeDeltas(repository_name=repository_name, artifact_name="foo", token="foo")
+        report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name=repository_name, artifact_name="foo",
+                                                               token="foo")
 
         json_data = [{"number": 1, "locked": True, "head": {"sha": "foo123", "ref": "asdf"}, "user": {"login": "1234"}},
                      {"number": 2, "locked": True, "head": {"sha": "foo123", "ref": "asdf"},
@@ -90,7 +95,8 @@ class TestReportsizedeltas(unittest.TestCase):
         pr_number = 42
         pr_head_sha = "foo123"
 
-        report_size_deltas = ReportSizeDeltas(repository_name=repository_name, artifact_name=artifact_name, token="foo")
+        report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name=repository_name,
+                                                               artifact_name=artifact_name, token="foo")
 
         json_data = [{"body": "foo123"}, {"body": report_size_deltas.report_key_beginning + pr_head_sha + "foo"}]
         report_size_deltas.api_request = unittest.mock.MagicMock(return_value={"json_data": json_data,
@@ -99,8 +105,8 @@ class TestReportsizedeltas(unittest.TestCase):
 
         self.assertTrue(report_size_deltas.report_exists(pr_number=pr_number, pr_head_sha=pr_head_sha))
 
-        report_size_deltas.api_request.assert_called_once_with(request="repos/" + repository_name + "/issues/" +
-                                                                       str(pr_number) + "/comments",
+        report_size_deltas.api_request.assert_called_once_with(request="repos/" + repository_name + "/issues/"
+                                                                       + str(pr_number) + "/comments",
                                                                page_number=1)
 
         self.assertFalse(report_size_deltas.report_exists(pr_number=pr_number, pr_head_sha="asdf"))
@@ -114,7 +120,8 @@ class TestReportsizedeltas(unittest.TestCase):
         test_artifact_url = "test_artifact_url"
         run_id = "4567"
 
-        report_size_deltas = ReportSizeDeltas(repository_name=repository_name, artifact_name="foo", token="foo")
+        report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name=repository_name, artifact_name="foo",
+                                                               token="foo")
 
         json_data = {"workflow_runs": [{"head_sha": "foo123", "id": "1234"}, {"head_sha": pr_head_sha, "id": run_id}]}
         report_size_deltas.api_request = unittest.mock.MagicMock(return_value={"json_data": json_data,
@@ -129,8 +136,8 @@ class TestReportsizedeltas(unittest.TestCase):
 
         # Test pagination
         request = "repos/" + repository_name + "/actions/runs"
-        request_parameters = ("actor=" + pr_user_login + "&branch=" + pr_head_ref +
-                              "&event=pull_request&status=completed")
+        request_parameters = ("actor=" + pr_user_login + "&branch=" + pr_head_ref
+                              + "&event=pull_request&status=completed")
         calls = [unittest.mock.call(request=request, request_parameters=request_parameters, page_number=1),
                  unittest.mock.call(request=request, request_parameters=request_parameters, page_number=2),
                  unittest.mock.call(request=request, request_parameters=request_parameters, page_number=3)]
@@ -158,7 +165,8 @@ class TestReportsizedeltas(unittest.TestCase):
         archive_download_url = "archive_download_url"
         run_id = "1234"
 
-        report_size_deltas = ReportSizeDeltas(repository_name=repository_name, artifact_name=artifact_name, token="foo")
+        report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name=repository_name,
+                                                               artifact_name=artifact_name, token="foo")
 
         json_data = {"artifacts": [{"name": artifact_name, "archive_download_url": archive_download_url},
                                    {"name": "bar123", "archive_download_url": "wrong_artifact_url"}]}
@@ -170,8 +178,8 @@ class TestReportsizedeltas(unittest.TestCase):
         self.assertEqual(archive_download_url, report_size_deltas.get_artifact_download_url_for_run(run_id=run_id))
 
         report_size_deltas.api_request.assert_called_once_with(
-            request="repos/" + repository_name + "/actions/runs/" + str(run_id) +
-                    "/artifacts",
+            request="repos/" + repository_name + "/actions/runs/" + str(run_id)
+                    + "/artifacts",
             page_number=1)
 
         json_data = {"artifacts": [{"name": "foo123", "archive_download_url": "test_artifact_url"},
@@ -192,11 +200,13 @@ class TestReportsizedeltas(unittest.TestCase):
         pr_number = 42
         repository_name = "test_user/test_repo"
 
-        report_size_deltas = ReportSizeDeltas(repository_name=repository_name, artifact_name="foo", token="foo")
+        report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name=repository_name, artifact_name="foo",
+                                                               token="foo")
 
         artifact_folder_object = tempfile.TemporaryDirectory(prefix="test_reportsizedeltas-")
         try:
-            distutils.dir_util.copy_tree(src=os.path.dirname(os.path.realpath(__file__)) + "/data/size-deltas-reports", dst=artifact_folder_object.name)
+            distutils.dir_util.copy_tree(src=os.path.dirname(os.path.realpath(__file__)) + "/data/size-deltas-reports",
+                                         dst=artifact_folder_object.name)
         except Exception:
             artifact_folder_object.cleanup()
             raise
@@ -204,15 +214,15 @@ class TestReportsizedeltas(unittest.TestCase):
         report = report_size_deltas.generate_report(artifact_folder_object=artifact_folder_object,
                                                     pr_head_sha=pr_head_sha, pr_number=pr_number)
         report_markdown = (
-                report_size_deltas.report_key_beginning + pr_head_sha +
-                "](https://github.com/" + repository_name + "/pull/" + str(pr_number) + "/commits/" + pr_head_sha +
-                ")**\n\n"
-                "FQBN | Flash Usage | RAM For Global Variables\n"
-                "---|---|---\n"
-                "adafruit:samd:adafruit_feather_m0 | 0 | N/A\n"
-                "arduino:samd:mkrgsm1400 | N/A | N/A\n"
-                "arduino:samd:mkrnb1500 | :green_heart: -24 | 0\n"
-                "esp8266:esp8266:huzzah | :small_red_triangle: +32 | :small_red_triangle: +16")
+            report_size_deltas.report_key_beginning + pr_head_sha
+            + "](https://github.com/" + repository_name + "/pull/" + str(pr_number) + "/commits/" + pr_head_sha
+            + ")**\n\n"
+              "FQBN | Flash Usage | RAM For Global Variables\n"
+              "---|---|---\n"
+              "adafruit:samd:adafruit_feather_m0 | 0 | N/A\n"
+              "arduino:samd:mkrgsm1400 | N/A | N/A\n"
+              "arduino:samd:mkrnb1500 | :green_heart: -24 | 0\n"
+              "esp8266:esp8266:huzzah | :small_red_triangle: +32 | :small_red_triangle: +16")
         self.assertEqual(report_markdown, report["markdown"])
 
         report_data = [{'flash': 10580,
@@ -255,7 +265,8 @@ class TestReportsizedeltas(unittest.TestCase):
         report_markdown = "test_report_markdown"
         repository_name = "test_user/test_repo"
 
-        report_size_deltas = ReportSizeDeltas(repository_name=repository_name, artifact_name="foo", token="foo")
+        report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name=repository_name, artifact_name="foo",
+                                                               token="foo")
 
         report_size_deltas.http_request = unittest.mock.MagicMock()
 
@@ -266,8 +277,8 @@ class TestReportsizedeltas(unittest.TestCase):
         report_data = report_data.encode(encoding="utf-8")
 
         report_size_deltas.http_request.assert_called_once_with(
-            url="https://api.github.com/repos/" + repository_name + "/issues/" +
-                str(pr_number) + "/comments",
+            url="https://api.github.com/repos/" + repository_name + "/issues/"
+                + str(pr_number) + "/comments",
             data=report_data)
 
     # @unittest.skip("")
@@ -279,7 +290,7 @@ class TestReportsizedeltas(unittest.TestCase):
         request_parameters = "test_parameters"
         page_number = 1
 
-        report_size_deltas = ReportSizeDeltas(repository_name="foo", artifact_name="foo", token="foo")
+        report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name="foo", artifact_name="foo", token="foo")
 
         report_size_deltas.get_json_response = unittest.mock.MagicMock(return_value=response_data)
 
@@ -287,15 +298,15 @@ class TestReportsizedeltas(unittest.TestCase):
                                                                        request_parameters=request_parameters,
                                                                        page_number=page_number))
         report_size_deltas.get_json_response.assert_called_once_with(
-            url="https://api.github.com/" + request + "?" + request_parameters +
-                "&page=" + str(page_number) + "&per_page=100")
+            url="https://api.github.com/" + request + "?" + request_parameters
+                + "&page=" + str(page_number) + "&per_page=100")
 
     # @unittest.skip("")
     def test_get_json_response(self):
         response = {"headers": {"Link": None}, "body": "[]"}
         url = "test_url"
 
-        report_size_deltas = ReportSizeDeltas(repository_name="foo", artifact_name="foo", token="foo")
+        report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name="foo", artifact_name="foo", token="foo")
 
         report_size_deltas.http_request = unittest.mock.MagicMock(return_value=response)
 
@@ -331,7 +342,7 @@ class TestReportsizedeltas(unittest.TestCase):
         url = "test_url"
         data = "test_data"
 
-        report_size_deltas = ReportSizeDeltas(repository_name="foo", artifact_name="foo", token="foo")
+        report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name="foo", artifact_name="foo", token="foo")
 
         report_size_deltas.raw_http_request = unittest.mock.MagicMock()
 
@@ -348,8 +359,9 @@ class TestReportsizedeltas(unittest.TestCase):
         data = "test_data"
         request = "test_request"
 
-        report_size_deltas = ReportSizeDeltas(repository_name=user_name + "/" + repo_name, artifact_name="foo",
-                                              token=token)
+        report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name=user_name + "/" + repo_name,
+                                                               artifact_name="foo",
+                                                               token=token)
 
         urllib.request.Request = unittest.mock.MagicMock(return_value=request)
         report_size_deltas.handle_rate_limiting = unittest.mock.MagicMock()
@@ -378,7 +390,7 @@ class TestReportsizedeltas(unittest.TestCase):
 
     # @unittest.skip("")
     def test_handle_rate_limiting(self):
-        report_size_deltas = ReportSizeDeltas(repository_name="foo", artifact_name="foo", token="foo")
+        report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name="foo", artifact_name="foo", token="foo")
 
         json_data = {"json_data": {"resources": {"core": {"remaining": 0, "reset": 1234, "limit": 42}}}}
         report_size_deltas.get_json_response = unittest.mock.MagicMock(return_value=json_data)
@@ -395,18 +407,28 @@ class TestReportsizedeltas(unittest.TestCase):
 
     @unittest.skip("disabled because it causes a delay")
     def test_determine_urlopen_retry_true(self):
-        self.assertTrue(determine_urlopen_retry(exception=urllib.error.HTTPError(None, 502, "Bad Gateway", None, None)))
+        self.assertTrue(reportsizedeltas.determine_urlopen_retry(
+            exception=urllib.error.HTTPError(None, 502, "Bad Gateway", None, None)))
 
     # @unittest.skip("")
     def test_determine_urlopen_retry_false(self):
-        self.assertFalse(determine_urlopen_retry(exception=urllib.error.HTTPError(None, 404, "Not Found", None, None)))
+        self.assertFalse(reportsizedeltas.determine_urlopen_retry(
+            exception=urllib.error.HTTPError(None, 404, "Not Found", None, None)))
+
+    # @unittest.skip("")
+    def test_get_page_count(self):
+        page_count = 4
+        link_header = ('<https://api.github.com/repositories/919161/pulls?page=2>; rel="next", '
+                       '"<https://api.github.com/repositories/919161/pulls?page=' + str(page_count) + '>; rel="last"')
+
+        self.assertEqual(page_count, reportsizedeltas.get_page_count(link_header=link_header))
 
     # @unittest.skip("")
     def test_generate_value_cell(self):
-        self.assertEqual(" | :small_red_triangle: +42", generate_value_cell(42))
-        self.assertEqual(" | 0", generate_value_cell(0))
-        self.assertEqual(" | :green_heart: -42", generate_value_cell(-42))
-        self.assertEqual(" | N/A", generate_value_cell("N/A"))
+        self.assertEqual(" | :small_red_triangle: +42", reportsizedeltas.generate_value_cell(42))
+        self.assertEqual(" | 0", reportsizedeltas.generate_value_cell(0))
+        self.assertEqual(" | :green_heart: -42", reportsizedeltas.generate_value_cell(-42))
+        self.assertEqual(" | N/A", reportsizedeltas.generate_value_cell("N/A"))
 
 
 if __name__ == '__main__':
