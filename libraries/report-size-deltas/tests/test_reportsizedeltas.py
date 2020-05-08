@@ -5,6 +5,8 @@ import tempfile
 import unittest.mock
 import urllib
 
+import pytest
+
 import reportsizedeltas
 
 
@@ -16,7 +18,7 @@ class TestReportsizedeltas(unittest.TestCase):
 
     # @unittest.skip("")
     def test_set_verbosity(self):
-        with self.assertRaises(TypeError):
+        with pytest.raises(TypeError):
             reportsizedeltas.set_verbosity(enable_verbosity=2)
         reportsizedeltas.set_verbosity(enable_verbosity=True)
         reportsizedeltas.set_verbosity(enable_verbosity=False)
@@ -39,7 +41,7 @@ class TestReportsizedeltas(unittest.TestCase):
                                                                                "page_count": 1})
 
         # Test handling of locked PR
-        self.assertEqual([], report_size_deltas.report_size_deltas())
+        assert [] == report_size_deltas.report_size_deltas()
         calls = [unittest.mock.call(request="repos/" + repository_name + "/pulls",
                                     page_number=1)]
         report_size_deltas.api_request.assert_has_calls(calls)
@@ -50,7 +52,7 @@ class TestReportsizedeltas(unittest.TestCase):
         for pr_data in json_data:
             pr_data["locked"] = False
 
-        self.assertEqual([], report_size_deltas.report_size_deltas())
+        assert [] == report_size_deltas.report_size_deltas()
 
         calls = []
         for pr_data in json_data:
@@ -63,7 +65,7 @@ class TestReportsizedeltas(unittest.TestCase):
 
         report_size_deltas.get_artifact_download_url_for_sha = unittest.mock.MagicMock(return_value=None)
 
-        self.assertEqual([], report_size_deltas.report_size_deltas())
+        assert [] == report_size_deltas.report_size_deltas()
 
         calls = []
         for pr_data in json_data:
@@ -86,7 +88,7 @@ class TestReportsizedeltas(unittest.TestCase):
         report_list = []
         for pr_data in json_data:
             report_list = report_list + [{"pr_number": pr_data["number"], "report": report["data"]}]
-        self.assertEqual(report_list, report_size_deltas.report_size_deltas())
+        assert report_list == report_size_deltas.report_size_deltas()
 
     # @unittest.skip("")
     def test_report_exists(self):
@@ -103,13 +105,13 @@ class TestReportsizedeltas(unittest.TestCase):
                                                                                "additional_pages": False,
                                                                                "page_count": 1})
 
-        self.assertTrue(report_size_deltas.report_exists(pr_number=pr_number, pr_head_sha=pr_head_sha))
+        assert report_size_deltas.report_exists(pr_number=pr_number, pr_head_sha=pr_head_sha)
 
         report_size_deltas.api_request.assert_called_once_with(request="repos/" + repository_name + "/issues/"
                                                                        + str(pr_number) + "/comments",
                                                                page_number=1)
 
-        self.assertFalse(report_size_deltas.report_exists(pr_number=pr_number, pr_head_sha="asdf"))
+        assert not report_size_deltas.report_exists(pr_number=pr_number, pr_head_sha="asdf")
 
     # @unittest.skip("")
     def test_get_artifact_download_url_for_sha(self):
@@ -130,9 +132,9 @@ class TestReportsizedeltas(unittest.TestCase):
         report_size_deltas.get_artifact_download_url_for_run = unittest.mock.MagicMock(return_value=None)
 
         # No SHA match
-        self.assertEqual(None, report_size_deltas.get_artifact_download_url_for_sha(pr_user_login=pr_user_login,
-                                                                                    pr_head_ref=pr_head_ref,
-                                                                                    pr_head_sha="foosha"))
+        assert report_size_deltas.get_artifact_download_url_for_sha(pr_user_login=pr_user_login,
+                                                                    pr_head_ref=pr_head_ref,
+                                                                    pr_head_sha="foosha") is None
 
         # Test pagination
         request = "repos/" + repository_name + "/actions/runs"
@@ -144,17 +146,18 @@ class TestReportsizedeltas(unittest.TestCase):
         report_size_deltas.api_request.assert_has_calls(calls)
 
         # SHA match, but no artifact for run
-        self.assertEqual(None, report_size_deltas.get_artifact_download_url_for_sha(pr_user_login=pr_user_login,
-                                                                                    pr_head_ref=pr_head_ref,
-                                                                                    pr_head_sha=pr_head_sha))
+        assert report_size_deltas.get_artifact_download_url_for_sha(pr_user_login=pr_user_login,
+                                                                    pr_head_ref=pr_head_ref,
+                                                                    pr_head_sha=pr_head_sha) is None
 
         report_size_deltas.get_artifact_download_url_for_run = unittest.mock.MagicMock(return_value=test_artifact_url)
 
         # SHA match, artifact match
-        self.assertEqual(test_artifact_url,
-                         report_size_deltas.get_artifact_download_url_for_sha(pr_user_login=pr_user_login,
-                                                                              pr_head_ref=pr_head_ref,
-                                                                              pr_head_sha=pr_head_sha))
+        assert test_artifact_url == (
+            report_size_deltas.get_artifact_download_url_for_sha(pr_user_login=pr_user_login,
+                                                                 pr_head_ref=pr_head_ref,
+                                                                 pr_head_sha=pr_head_sha)
+        )
 
         report_size_deltas.get_artifact_download_url_for_run.assert_called_once_with(run_id=run_id)
 
@@ -175,7 +178,7 @@ class TestReportsizedeltas(unittest.TestCase):
                                                                                "page_count": 1})
 
         # Artifact name match
-        self.assertEqual(archive_download_url, report_size_deltas.get_artifact_download_url_for_run(run_id=run_id))
+        assert archive_download_url == report_size_deltas.get_artifact_download_url_for_run(run_id=run_id)
 
         report_size_deltas.api_request.assert_called_once_with(
             request="repos/" + repository_name + "/actions/runs/" + str(run_id)
@@ -189,7 +192,7 @@ class TestReportsizedeltas(unittest.TestCase):
                                                                                "page_count": 1})
 
         # No artifact name match
-        self.assertEqual(None, report_size_deltas.get_artifact_download_url_for_run(run_id=run_id))
+        assert report_size_deltas.get_artifact_download_url_for_run(run_id=run_id) is None
 
     # # TODO
     # def test_get_artifact(self):
@@ -223,7 +226,7 @@ class TestReportsizedeltas(unittest.TestCase):
               "arduino:samd:mkrgsm1400 | N/A | N/A\n"
               "arduino:samd:mkrnb1500 | :green_heart: -24 | 0\n"
               "esp8266:esp8266:huzzah | :small_red_triangle: +32 | :small_red_triangle: +16")
-        self.assertEqual(report_markdown, report["markdown"])
+        assert report_markdown == report["markdown"]
 
         report_data = [{'flash': 10580,
                         'flash_delta': 0,
@@ -257,7 +260,7 @@ class TestReportsizedeltas(unittest.TestCase):
                         'ram': 27496,
                         'ram_delta': 16,
                         'sketch': 'examples/ConnectionHandlerDemo'}]
-        self.assertEqual(report_data, report["data"])
+        assert report_data == report["data"]
 
     # @unittest.skip("")
     def test_comment_report(self):
@@ -294,9 +297,9 @@ class TestReportsizedeltas(unittest.TestCase):
 
         report_size_deltas.get_json_response = unittest.mock.MagicMock(return_value=response_data)
 
-        self.assertEqual(response_data, report_size_deltas.api_request(request=request,
-                                                                       request_parameters=request_parameters,
-                                                                       page_number=page_number))
+        assert response_data == report_size_deltas.api_request(request=request,
+                                                               request_parameters=request_parameters,
+                                                               page_number=page_number)
         report_size_deltas.get_json_response.assert_called_once_with(
             url="https://api.github.com/" + request + "?" + request_parameters
                 + "&page=" + str(page_number) + "&per_page=100")
@@ -312,9 +315,9 @@ class TestReportsizedeltas(unittest.TestCase):
 
         # Empty body
         response_data = report_size_deltas.get_json_response(url=url)
-        self.assertEqual(json.loads(response["body"]), response_data["json_data"])
-        self.assertFalse(response_data["additional_pages"])
-        self.assertEqual(0, response_data["page_count"])
+        assert json.loads(response["body"]) == response_data["json_data"]
+        assert not response_data["additional_pages"]
+        assert 0 == response_data["page_count"]
         report_size_deltas.http_request.assert_called_once_with(url=url)
 
         response = {"headers": {"Link": None}, "body": "[42]"}
@@ -322,9 +325,9 @@ class TestReportsizedeltas(unittest.TestCase):
 
         # Non-empty body, Link field is None
         response_data = report_size_deltas.get_json_response(url=url)
-        self.assertEqual(json.loads(response["body"]), response_data["json_data"])
-        self.assertFalse(response_data["additional_pages"])
-        self.assertEqual(1, response_data["page_count"])
+        assert json.loads(response["body"]) == response_data["json_data"]
+        assert not response_data["additional_pages"]
+        assert 1 == response_data["page_count"]
 
         response = {"headers": {"Link": '<https://api.github.com/repositories/919161/pulls?page=2>; rel="next", '
                                         '"<https://api.github.com/repositories/919161/pulls?page=4>; rel="last"'},
@@ -333,9 +336,9 @@ class TestReportsizedeltas(unittest.TestCase):
 
         # Non-empty body, Link field is populated
         response_data = report_size_deltas.get_json_response(url=url)
-        self.assertEqual(json.loads(response["body"]), response_data["json_data"])
-        self.assertTrue(response_data["additional_pages"])
-        self.assertEqual(4, response_data["page_count"])
+        assert json.loads(response["body"]) == response_data["json_data"]
+        assert response_data["additional_pages"]
+        assert 4 == response_data["page_count"]
 
     # @unittest.skip("")
     def test_http_request(self):
@@ -395,10 +398,8 @@ class TestReportsizedeltas(unittest.TestCase):
         json_data = {"json_data": {"resources": {"core": {"remaining": 0, "reset": 1234, "limit": 42}}}}
         report_size_deltas.get_json_response = unittest.mock.MagicMock(return_value=json_data)
 
-        # noinspection PyTypeChecker
-        with self.assertRaises(SystemExit) as cm:
+        with pytest.raises(expected_exception=SystemExit, match="0"):
             report_size_deltas.handle_rate_limiting()
-        self.assertEqual(cm.exception.code, 0)
 
         report_size_deltas.get_json_response.assert_called_once_with(url="https://api.github.com/rate_limit")
 
@@ -407,13 +408,13 @@ class TestReportsizedeltas(unittest.TestCase):
 
     @unittest.skip("disabled because it causes a delay")
     def test_determine_urlopen_retry_true(self):
-        self.assertTrue(reportsizedeltas.determine_urlopen_retry(
-            exception=urllib.error.HTTPError(None, 502, "Bad Gateway", None, None)))
+        assert reportsizedeltas.determine_urlopen_retry(
+            exception=urllib.error.HTTPError(None, 502, "Bad Gateway", None, None))
 
     # @unittest.skip("")
     def test_determine_urlopen_retry_false(self):
-        self.assertFalse(reportsizedeltas.determine_urlopen_retry(
-            exception=urllib.error.HTTPError(None, 404, "Not Found", None, None)))
+        assert not reportsizedeltas.determine_urlopen_retry(
+            exception=urllib.error.HTTPError(None, 404, "Not Found", None, None))
 
     # @unittest.skip("")
     def test_get_page_count(self):
@@ -421,14 +422,14 @@ class TestReportsizedeltas(unittest.TestCase):
         link_header = ('<https://api.github.com/repositories/919161/pulls?page=2>; rel="next", '
                        '"<https://api.github.com/repositories/919161/pulls?page=' + str(page_count) + '>; rel="last"')
 
-        self.assertEqual(page_count, reportsizedeltas.get_page_count(link_header=link_header))
+        assert page_count == reportsizedeltas.get_page_count(link_header=link_header)
 
     # @unittest.skip("")
     def test_generate_value_cell(self):
-        self.assertEqual(" | :small_red_triangle: +42", reportsizedeltas.generate_value_cell(42))
-        self.assertEqual(" | 0", reportsizedeltas.generate_value_cell(0))
-        self.assertEqual(" | :green_heart: -42", reportsizedeltas.generate_value_cell(-42))
-        self.assertEqual(" | N/A", reportsizedeltas.generate_value_cell("N/A"))
+        assert " | :small_red_triangle: +42" == reportsizedeltas.generate_value_cell(42)
+        assert " | 0" == reportsizedeltas.generate_value_cell(0)
+        assert " | :green_heart: -42" == reportsizedeltas.generate_value_cell(-42)
+        assert " | N/A" == reportsizedeltas.generate_value_cell("N/A")
 
 
 if __name__ == '__main__':
