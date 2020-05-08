@@ -16,14 +16,12 @@ class TestReportsizedeltas(unittest.TestCase):
 
     reportsizedeltas.set_verbosity(enable_verbosity=False)
 
-    # @unittest.skip("")
     def test_set_verbosity(self):
         with pytest.raises(TypeError):
             reportsizedeltas.set_verbosity(enable_verbosity=2)
         reportsizedeltas.set_verbosity(enable_verbosity=True)
         reportsizedeltas.set_verbosity(enable_verbosity=False)
 
-    # @unittest.skip("")
     def test_report_size_deltas(self):
         repository_name = "test_name/test_repo"
         artifact_download_url = "test_artifact_download_url"
@@ -90,7 +88,6 @@ class TestReportsizedeltas(unittest.TestCase):
             report_list = report_list + [{"pr_number": pr_data["number"], "report": report["data"]}]
         assert report_list == report_size_deltas.report_size_deltas()
 
-    # @unittest.skip("")
     def test_report_exists(self):
         repository_name = "test_name/test_repo"
         artifact_name = "test_artifact_name"
@@ -113,7 +110,6 @@ class TestReportsizedeltas(unittest.TestCase):
 
         assert not report_size_deltas.report_exists(pr_number=pr_number, pr_head_sha="asdf")
 
-    # @unittest.skip("")
     def test_get_artifact_download_url_for_sha(self):
         repository_name = "test_name/test_repo"
         pr_user_login = "test_pr_user_login"
@@ -161,7 +157,6 @@ class TestReportsizedeltas(unittest.TestCase):
 
         report_size_deltas.get_artifact_download_url_for_run.assert_called_once_with(run_id=run_id)
 
-    # @unittest.skip("")
     def test_get_artifact_download_url_for_run(self):
         repository_name = "test_name/test_repo"
         artifact_name = "test_artifact_name"
@@ -197,7 +192,6 @@ class TestReportsizedeltas(unittest.TestCase):
     # # TODO
     # def test_get_artifact(self):
 
-    # @unittest.skip("")
     def test_generate_report(self):
         pr_head_sha = "asdf123"
         pr_number = 42
@@ -262,7 +256,6 @@ class TestReportsizedeltas(unittest.TestCase):
                         'sketch': 'examples/ConnectionHandlerDemo'}]
         assert report_data == report["data"]
 
-    # @unittest.skip("")
     def test_comment_report(self):
         pr_number = 42
         report_markdown = "test_report_markdown"
@@ -284,7 +277,6 @@ class TestReportsizedeltas(unittest.TestCase):
                 + str(pr_number) + "/comments",
             data=report_data)
 
-    # @unittest.skip("")
     def test_api_request(self):
         response_data = {"json_data": {"foo": "bar"},
                          "additional_pages": False,
@@ -304,7 +296,6 @@ class TestReportsizedeltas(unittest.TestCase):
             url="https://api.github.com/" + request + "?" + request_parameters
                 + "&page=" + str(page_number) + "&per_page=100")
 
-    # @unittest.skip("")
     def test_get_json_response(self):
         response = {"headers": {"Link": None}, "body": "[]"}
         url = "test_url"
@@ -340,7 +331,6 @@ class TestReportsizedeltas(unittest.TestCase):
         assert response_data["additional_pages"]
         assert 4 == response_data["page_count"]
 
-    # @unittest.skip("")
     def test_http_request(self):
         url = "test_url"
         data = "test_data"
@@ -353,7 +343,6 @@ class TestReportsizedeltas(unittest.TestCase):
 
         report_size_deltas.raw_http_request.assert_called_once_with(url=url, data=data)
 
-    # @unittest.skip("")
     def test_raw_http_request(self):
         user_name = "test_user"
         repo_name = "test_repo"
@@ -391,7 +380,6 @@ class TestReportsizedeltas(unittest.TestCase):
 
         urllib.request.urlopen.assert_called_once_with(url=request)
 
-    # @unittest.skip("")
     def test_handle_rate_limiting(self):
         report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name="foo", artifact_name="foo", token="foo")
 
@@ -406,17 +394,15 @@ class TestReportsizedeltas(unittest.TestCase):
         json_data["json_data"]["resources"]["core"]["remaining"] = 42
         report_size_deltas.handle_rate_limiting()
 
-    @unittest.skip("disabled because it causes a delay")
+    @pytest.mark.slow(reason="Causes a delay")
     def test_determine_urlopen_retry_true(self):
         assert reportsizedeltas.determine_urlopen_retry(
             exception=urllib.error.HTTPError(None, 502, "Bad Gateway", None, None))
 
-    # @unittest.skip("")
     def test_determine_urlopen_retry_false(self):
         assert not reportsizedeltas.determine_urlopen_retry(
             exception=urllib.error.HTTPError(None, 404, "Not Found", None, None))
 
-    # @unittest.skip("")
     def test_get_page_count(self):
         page_count = 4
         link_header = ('<https://api.github.com/repositories/919161/pulls?page=2>; rel="next", '
@@ -424,7 +410,6 @@ class TestReportsizedeltas(unittest.TestCase):
 
         assert page_count == reportsizedeltas.get_page_count(link_header=link_header)
 
-    # @unittest.skip("")
     def test_generate_value_cell(self):
         assert " | :small_red_triangle: +42" == reportsizedeltas.generate_value_cell(42)
         assert " | 0" == reportsizedeltas.generate_value_cell(0)
