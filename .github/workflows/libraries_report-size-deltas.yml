@@ -1,6 +1,15 @@
 name: libraries/report-size-deltas workflow
 
-on: [push, pull_request]
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/libraries_report-size-deltas.yml'
+      - 'libraries/report-size-deltas/**'
+
+  push:
+    paths:
+      - '.github/workflows/libraries_report-size-deltas.yml'
+      - 'libraries/report-size-deltas/**'
 
 jobs:
   test:
