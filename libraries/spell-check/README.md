@@ -8,6 +8,10 @@ Runs codespell on library source code and examples contained in the library.
 
 File path of list of words to ignore.
 
+### `skip-paths`
+
+Comma-separated list of files to skip. It accepts globs as well. `./.git` is always skipped.
+
 ## Example usage
 
 ```yaml

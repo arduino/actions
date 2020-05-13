@@ -4,8 +4,12 @@ inputs:
   ignore-words-list:
     description: 'File path of list of words to ignore'
     default: ''
+  skip-paths:
+    description: 'Comma-separated list of files to skip. It accepts globs as well.'
+    default: ''
 runs:
   using: 'docker'
   image: 'Dockerfile'
   args:
     - ${{ inputs.ignore-words-list }}
+    - ${{ inputs.skip-paths }}
