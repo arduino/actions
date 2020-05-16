@@ -4,6 +4,8 @@ import os
 import pathlib
 import unittest.mock
 
+import google.oauth2
+import googleapiclient
 import pytest
 
 import reportsizetrends
@@ -65,6 +67,34 @@ def test_set_verbosity():
         reportsizetrends.set_verbosity(enable_verbosity=2)
     reportsizetrends.set_verbosity(enable_verbosity=True)
     reportsizetrends.set_verbosity(enable_verbosity=False)
+
+
+def test_main(monkeypatch, mocker):
+    sketches_report_path = "foo/sketches_report_path"
+    google_key_file = "foo keyfile"
+    spreadsheet_id = "foo spreadsheet id"
+    sheet_name = "foo sheet name"
+
+    class ReportSizeTrends:
+        def report_size_trends(self):
+            pass
+
+    monkeypatch.setenv("INPUT_SKETCHES-REPORT-PATH", sketches_report_path)
+    monkeypatch.setenv("INPUT_KEYFILE", google_key_file)
+    monkeypatch.setenv("INPUT_SIZE-TRENDS-REPORT-SPREADSHEET-ID", spreadsheet_id)
+    monkeypatch.setenv("INPUT_SIZE-TRENDS-REPORT-SHEET-NAME", sheet_name)
+
+    mocker.patch("reportsizetrends.ReportSizeTrends", autospec=True, return_value=ReportSizeTrends())
+    mocker.patch.object(ReportSizeTrends, "report_size_trends")
+
+    reportsizetrends.main()
+
+    reportsizetrends.ReportSizeTrends.assert_called_once_with(
+        sketches_report_path=sketches_report_path,
+        google_key_file=google_key_file,
+        spreadsheet_id=spreadsheet_id,
+        sheet_name=sheet_name)
+    ReportSizeTrends.report_size_trends.assert_called_once()
 
 
 @pytest.mark.parametrize("report_path_exists", [True, False])
@@ -362,3 +392,23 @@ def test_absolute_path(monkeypatch, path, expected_absolute_path):
 
     assert reportsizetrends.absolute_path(path=path) == pathlib.Path(expected_absolute_path).resolve()
     assert reportsizetrends.absolute_path(path=pathlib.Path(path)) == pathlib.Path(expected_absolute_path).resolve()
+
+
+def test_get_service(mocker):
+    google_key_file = unittest.mock.sentinel.google_key_file
+    info = unittest.mock.sentinel.info
+    credentials = unittest.mock.sentinel.credentials
+    service = unittest.mock.sentinel.service
+
+    mocker.patch("json.loads", autospec=True, return_value=info)
+    mocker.patch("google.oauth2.service_account.Credentials.from_service_account_info", autospec=True,
+                 return_value=credentials)
+    mocker.patch("googleapiclient.discovery.build", autospec=True, return_value=service)
+
+    assert reportsizetrends.get_service(google_key_file) == service
+
+    json.loads.assert_called_once_with(google_key_file, strict=False)
+    google.oauth2.service_account.Credentials.from_service_account_info.assert_called_once_with(
+        info=info, scopes=['https://www.googleapis.com/auth/spreadsheets']
+    )
+    googleapiclient.discovery.build.assert_called_once_with(serviceName='sheets', version='v4', credentials=credentials)
