@@ -8,7 +8,7 @@ This action records the memory usage of the sketch specified to the [`arduino/ac
 
 Path that contains the JSON formatted sketch data report, as specified to the `arduino/actions/libraries/compile-examples` action's [sketches-report-path input](../compile-examples/README.md#sketches-report-path). Default `"size-deltas-reports"`.
 
-### `keyfile`
+### `google-key-file`
 
 **Required** Contents of the Google key file used to update the size trends report Google Sheets spreadsheet. This should be defined using a [GitHub secret](https://help.github.com/en/actions/configuring-and-managing-workflows/creating-and-storing-encrypted-secrets).
 1. Open https://console.developers.google.com/project
@@ -51,7 +51,7 @@ Path that contains the JSON formatted sketch data report, as specified to the `a
 1. Click the "OK" button.
 1. In the "Skip sending invitations?" dialog, click the "OK" button.
 
-### `size-trends-report-spreadsheet-id`
+### `spreadsheet-id`
 
 **Required** The ID of the Google Sheets spreadsheet to write the memory usage trends data to. The URL of your spreadsheet will look something like:
 ```
@@ -59,7 +59,7 @@ https://docs.google.com/spreadsheets/d/15WOp3vp-6AnTnWlNWaNWNl61Fe_j8UJhIKE0rVdV
 ```
 In this example, the spreadsheet ID is `15WOp3vp-6AnTnWlNWaNWNl61Fe_j8UJhIKE0rVdV-7U`.
 
-### `size-trends-report-sheet-name`
+### `sheet-name`
 
 The sheet name in the Google Sheets spreadsheet used for the memory usage trends report. Default `"Sheet1"`.
 
@@ -73,6 +73,6 @@ The sheet name in the Google Sheets spreadsheet used for the memory usage trends
 - if: github.event_name == 'push' && github.ref == 'refs/heads/master'
   uses: arduino/actions/libraries/report-size-trends@master
   with:
-    keyfile: ${{ secrets.GOOGLE_KEY_FILE }}
-    size-trends-report-spreadsheet-id: 15WOp3vp-6AnTnWlNWaNWNl61Fe_j8UJhIKE0rVdV-7U
+    google-key-file: ${{ secrets.GOOGLE_KEY_FILE }}
+    spreadsheet-id: 15WOp3vp-6AnTnWlNWaNWNl61Fe_j8UJhIKE0rVdV-7U
 ```

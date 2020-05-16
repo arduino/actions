@@ -5,13 +5,13 @@ inputs:
     description: 'Path the arduino/actions/libraries/compile-examples action saved the sketch data report to'
     required: false
     default: 'size-deltas-reports'
-  keyfile:
+  google-key-file:
     description: 'Google key file used to update the size trends report Google Sheets spreadsheet.'
     required: true
-  size-trends-report-spreadsheet-id:
+  spreadsheet-id:
     description: 'The ID of the Google Sheets spreadsheet to write the memory usage trends data to'
     required: true
-  size-trends-report-sheet-name:
+  sheet-name:
     description: 'The sheet name in the Google Sheets spreadsheet used for the memory usage trends report'
     required: false
     default: 'Sheet1'

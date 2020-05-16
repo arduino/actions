@@ -80,9 +80,9 @@ def test_main(monkeypatch, mocker):
             pass
 
     monkeypatch.setenv("INPUT_SKETCHES-REPORT-PATH", sketches_report_path)
-    monkeypatch.setenv("INPUT_KEYFILE", google_key_file)
-    monkeypatch.setenv("INPUT_SIZE-TRENDS-REPORT-SPREADSHEET-ID", spreadsheet_id)
-    monkeypatch.setenv("INPUT_SIZE-TRENDS-REPORT-SHEET-NAME", sheet_name)
+    monkeypatch.setenv("INPUT_GOOGLE-KEY-FILE", google_key_file)
+    monkeypatch.setenv("INPUT_SPREADSHEET-ID", spreadsheet_id)
+    monkeypatch.setenv("INPUT_SHEET-NAME", sheet_name)
 
     mocker.patch("reportsizetrends.ReportSizeTrends", autospec=True, return_value=ReportSizeTrends())
     mocker.patch.object(ReportSizeTrends, "report_size_trends")

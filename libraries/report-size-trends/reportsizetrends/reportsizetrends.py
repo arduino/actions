@@ -18,9 +18,9 @@ logger_level = logging.WARNING
 
 def main():
     report_size_trends = ReportSizeTrends(sketches_report_path=os.environ["INPUT_SKETCHES-REPORT-PATH"],
-                                          google_key_file=os.environ["INPUT_KEYFILE"],
-                                          spreadsheet_id=os.environ["INPUT_SIZE-TRENDS-REPORT-SPREADSHEET-ID"],
-                                          sheet_name=os.environ["INPUT_SIZE-TRENDS-REPORT-SHEET-NAME"])
+                                          google_key_file=os.environ["INPUT_GOOGLE-KEY-FILE"],
+                                          spreadsheet_id=os.environ["INPUT_SPREADSHEET-ID"],
+                                          sheet_name=os.environ["INPUT_SHEET-NAME"])
 
     report_size_trends.report_size_trends()
 
