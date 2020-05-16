@@ -49,10 +49,13 @@ def get_reportsizetrends_object(fqbn="foo:bar:baz",
     os.environ["GITHUB_WORKSPACE"] = "/foo/github-workspace"
     with unittest.mock.patch("pathlib.Path.exists", autospec=True, return_value=True):
         with unittest.mock.patch("reportsizetrends.get_sketches_report", autospec=True, return_value=sketches_report):
-            report_size_trends_object = reportsizetrends.ReportSizeTrends(sketches_report_path=sketches_report_path,
-                                                                          google_key_file=google_key_file,
-                                                                          spreadsheet_id=spreadsheet_id,
-                                                                          sheet_name=sheet_name)
+            with unittest.mock.patch("reportsizetrends.get_service",
+                                     autospec=True,
+                                     return_value=unittest.mock.sentinel.service):
+                report_size_trends_object = reportsizetrends.ReportSizeTrends(sketches_report_path=sketches_report_path,
+                                                                              google_key_file=google_key_file,
+                                                                              spreadsheet_id=spreadsheet_id,
+                                                                              sheet_name=sheet_name)
 
     return report_size_trends_object
 
@@ -77,6 +80,7 @@ def test_reportsizetrends(capsys, monkeypatch, mocker, report_path_exists):
                        reportsizetrends.ReportSizeTrends.ReportKeys.ram: 42}
     sketches_report_path = "foo/sketches-report-path"
     google_key_file = "foo-key-file"
+    service = unittest.mock.sentinel.service
     spreadsheet_id = "foo-spreadsheet-id"
     sheet_name = "foo-sheet-name"
 
@@ -84,6 +88,7 @@ def test_reportsizetrends(capsys, monkeypatch, mocker, report_path_exists):
 
     mocker.patch("pathlib.Path.exists", autospec=True, return_value=report_path_exists)
     mocker.patch("reportsizetrends.get_sketches_report", autospec=True, return_value=sketches_report)
+    mocker.patch("reportsizetrends.get_service", autospec=True, return_value=service)
 
     if report_path_exists is False:
         with pytest.raises(expected_exception=SystemExit, match="1"):
@@ -102,16 +107,16 @@ def test_reportsizetrends(capsys, monkeypatch, mocker, report_path_exists):
         reportsizetrends.get_sketches_report.assert_called_once_with(
             sketches_report_path=reportsizetrends.absolute_path(sketches_report_path)
         )
+        reportsizetrends.get_service.assert_called_once_with(google_key_file=google_key_file)
         assert report_size_trends.fqbn == fqbn
         assert report_size_trends.commit_hash == commit_hash
         assert report_size_trends.commit_url == commit_url
         assert report_size_trends.sketches_data == [sketches_report]
-        assert report_size_trends.google_key_file == google_key_file
+        assert report_size_trends.service == service
         assert report_size_trends.spreadsheet_id == spreadsheet_id
         assert report_size_trends.sheet_name == sheet_name
 
 
-# noinspection PyUnresolvedReferences
 def test_report_size_trends():
     google_key_file = "test_google_key_file"
     sketch_path = "foo/SketchPath"
@@ -126,7 +131,6 @@ def test_report_size_trends():
 
     report_size_trends = get_reportsizetrends_object(google_key_file=google_key_file, sketches_data=sketches_data)
 
-    report_size_trends.get_service = unittest.mock.MagicMock()
     report_size_trends.get_heading_row_data = unittest.mock.MagicMock(return_value=heading_row_data)
     report_size_trends.populate_shared_data_headings = unittest.mock.MagicMock()
     report_size_trends.get_data_column_letters = unittest.mock.MagicMock(return_value=data_column_letters)
@@ -138,7 +142,6 @@ def test_report_size_trends():
     # Test unpopulated shared data headings
     report_size_trends.report_size_trends()
 
-    report_size_trends.get_service.assert_called_once_with(google_key_file=google_key_file)
     report_size_trends.get_heading_row_data.assert_has_calls([unittest.mock.call(), unittest.mock.call()])
     report_size_trends.populate_shared_data_headings.assert_called_once()
     report_size_trends.get_data_column_letters.assert_called_once_with(heading_row_data=heading_row_data)

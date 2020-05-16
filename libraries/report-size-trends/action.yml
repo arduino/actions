@@ -1,0 +1,20 @@
+name: 'Arduino Libraries - Report Size Trends'
+description: 'Records sketch memory usage to a Google Sheets spreadsheet'
+inputs:
+  sketches-report-path:
+    description: 'Path the arduino/actions/libraries/compile-examples action saved the sketch data report to'
+    required: false
+    default: 'size-deltas-reports'
+  keyfile:
+    description: 'Google key file used to update the size trends report Google Sheets spreadsheet.'
+    required: true
+  size-trends-report-spreadsheet-id:
+    description: 'The ID of the Google Sheets spreadsheet to write the memory usage trends data to'
+    required: true
+  size-trends-report-sheet-name:
+    description: 'The sheet name in the Google Sheets spreadsheet used for the memory usage trends report'
+    required: false
+    default: 'Sheet1'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'

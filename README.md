@@ -14,7 +14,12 @@ do compilation testing of your Arduino library.
 
 * [libraries/report-size-deltas](./libraries/report-size-deltas) comments on
 pull requests to provide a report of the resulting change in memory usage to the
-Arduino library's example sketch .
+Arduino library's example sketch.
+
+* [libraries/report-size-trends](./libraries/report-size-trends) records the
+sketch memory usage data reported by the
+`arduino/actions/libraries/compile-examples` action in a Google Sheets
+spreadsheet.
 
 * [libraries/spell-check](./libraries/spell-check) checks the files of your
 repository for commonly misspelled words.

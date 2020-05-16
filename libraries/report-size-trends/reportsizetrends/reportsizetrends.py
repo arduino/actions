@@ -1,4 +1,3 @@
-import argparse
 import datetime
 import json
 import logging
@@ -17,13 +16,11 @@ logger = logging.getLogger(__name__)
 logger_level = logging.WARNING
 
 
-def main(argument):
-    set_verbosity(enable_verbosity=argument.enable_verbosity)
-
-    report_size_trends = ReportSizeTrends(sketches_report_path=argument.sketches_report_path,
-                                          google_key_file=argument.google_key_file,
-                                          spreadsheet_id=argument.spreadsheet_id,
-                                          sheet_name=argument.sheet_name)
+def main():
+    report_size_trends = ReportSizeTrends(sketches_report_path=os.environ["INPUT_SKETCHES-REPORT-PATH"],
+                                          google_key_file=os.environ["INPUT_KEYFILE"],
+                                          spreadsheet_id=os.environ["INPUT_SIZE-TRENDS-REPORT-SPREADSHEET-ID"],
+                                          sheet_name=os.environ["INPUT_SIZE-TRENDS-REPORT-SHEET-NAME"])
 
     report_size_trends.report_size_trends()
 
@@ -94,19 +91,17 @@ class ReportSizeTrends:
         self.commit_url = sketches_report[self.ReportKeys.commit_url]
         self.sketches_data = [sketches_report]
 
-        self.google_key_file = google_key_file
+        self.service = get_service(google_key_file=google_key_file)
         self.sheet_name = sheet_name
         self.spreadsheet_id = spreadsheet_id
 
     def report_size_trends(self):
         """Add memory usage data to a Google Sheets spreadsheet"""
-        self.service = self.get_service(google_key_file=self.google_key_file)
-
         heading_row_data = self.get_heading_row_data()
 
         if ("values" in heading_row_data) is False:
             # Fresh sheet, so fill in the shared data headings
-            logger.info("Initializing empty sheet")
+            print("Initializing empty sheet")
             self.populate_shared_data_headings()
 
             # Get the heading row data again in case it changed
@@ -131,16 +126,6 @@ class ReportSizeTrends:
                                          row_number=current_row["number"],
                                          flash=sketch_data[self.ReportKeys.flash],
                                          ram=sketch_data[self.ReportKeys.ram])
-
-    def get_service(self, google_key_file):
-        """Return the Google API service object
-
-        Keyword arguments:
-        google_key_file -- contents of the Google private key file
-        """
-        credentials = service_account.Credentials.from_service_account_info(
-            json.loads(google_key_file, strict=False), scopes=['https://www.googleapis.com/auth/spreadsheets'])
-        return discovery.build('sheets', 'v4', credentials=credentials)
 
     def get_heading_row_data(self):
         """Return the contents of the heading row"""
@@ -293,6 +278,11 @@ def absolute_path(path):
 
 
 def get_sketches_report(sketches_report_path):
+    """Return the data read from the JSON-formatted sketches report file
+
+    Keyword arguments:
+    path -- the path of the sketches report folder
+    """
     sketches_report_file_path = next(sketches_report_path.glob("*.json"))
     with sketches_report_file_path.open() as sketches_report_file:
         sketches_report = json.load(sketches_report_file)
@@ -300,20 +290,17 @@ def get_sketches_report(sketches_report_path):
     return sketches_report
 
 
+def get_service(google_key_file):
+    """Return the Google API service object
+
+    Keyword arguments:
+    google_key_file -- contents of the Google private key file
+    """
+    credentials = service_account.Credentials.from_service_account_info(
+        info=json.loads(google_key_file, strict=False), scopes=['https://www.googleapis.com/auth/spreadsheets'])
+    return discovery.build(serviceName='sheets', version='v4', credentials=credentials)
+
+
 # Only execute the following code if the script is run directly, not imported
 if __name__ == '__main__':
-    # Parse command line arguments
-    argument_parser = argparse.ArgumentParser()
-    argument_parser.add_argument("--sketches-report-folder-name", dest="sketches_report_folder_name",
-                                 help="Name of the folder containing the sketches report")
-    argument_parser.add_argument("--google-key-file", dest="google_key_file",
-                                 help="Contents of the Google authentication key file")
-    argument_parser.add_argument("--spreadsheet-id", dest="spreadsheet_id",
-                                 help="ID of the Google Sheets spreadsheet to edit")
-    argument_parser.add_argument("--sheet-name", dest="sheet_name",
-                                 help="Sheet name of the Google Sheets spreadsheet to edit")
-    argument_parser.add_argument("--verbose", dest="enable_verbosity", help="Enable verbose output",
-                                 action="store_true")
-
-    # Run program
-    main(argument_parser.parse_args())
+    main()
