@@ -1,6 +1,6 @@
 # libraries/spell-check action
 
-Runs codespell on library source code and examples contained in the library.
+Uses [codespell](https://github.com/codespell-project/codespell) to check files for commonly misspelled words.
 
 ## Inputs
 
