@@ -1,5 +1,5 @@
-name: 'Arduino Libraries - Spell Check'
-description: 'Runs codespell on library source code and examples contained in the library'
+name: 'Spell Check'
+description: 'Uses codespell to check files for commonly misspelled words'
 inputs:
   ignore-words-list:
     description: 'File path of list of words to ignore'
