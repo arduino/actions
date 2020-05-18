@@ -1,7 +1,10 @@
-import logging
-import argparse
-import json
 import datetime
+import json
+import logging
+import os
+import pathlib
+import sys
+
 from google.oauth2 import service_account
 from googleapiclient import discovery
 
@@ -13,18 +16,11 @@ logger = logging.getLogger(__name__)
 logger_level = logging.WARNING
 
 
-def main(argument):
-    set_verbosity(enable_verbosity=argument.enable_verbosity)
-
-    report_size_trends = ReportSizeTrends(google_key_file=argument.google_key_file,
-                                          spreadsheet_id=argument.spreadsheet_id,
-                                          sheet_name=argument.sheet_name,
-                                          sketch_name=argument.sketch_name,
-                                          commit_hash=argument.commit_hash,
-                                          commit_url=argument.commit_url,
-                                          fqbn=argument.fqbn,
-                                          flash=argument.flash,
-                                          ram=argument.ram)
+def main():
+    report_size_trends = ReportSizeTrends(sketches_report_path=os.environ["INPUT_SKETCHES-REPORT-PATH"],
+                                          google_key_file=os.environ["INPUT_GOOGLE-KEY-FILE"],
+                                          spreadsheet_id=os.environ["INPUT_SPREADSHEET-ID"],
+                                          sheet_name=os.environ["INPUT_SHEET-NAME"])
 
     report_size_trends.report_size_trends()
 
@@ -52,15 +48,11 @@ class ReportSizeTrends:
     """Methods for reporting memory usage to a Google Sheets spreadsheet
 
     Keyword arguments:
+    sketches_report_path -- path of the folder containing the sketches report. Relative paths are assumed to be relative
+                            to the workspace.
     google_key_file -- Google key file that gives write access to the Google Sheets API
     spreadsheet_id -- ID of the spreadsheet
     sheet_name -- name of the spreadsheet's sheet to use for the report
-    sketch_name -- name of the example sketch the memory usage data comes from
-    commit_hash -- SHA of the commit the data applies to
-    commit_url -- GitHub URL for the commit
-    fqbn -- FQBN of the board the data is for
-    flash -- flash memory usage of the sketch when compiled for the FQBN
-    ram -- dynamic memory used by globals of the sketch when compiled for the FQBN
     """
     heading_row_number = "1"
     timestamp_column_letter = "A"
@@ -79,60 +71,61 @@ class ReportSizeTrends:
     flash_heading_indicator = " flash"
     ram_heading_indicator = " RAM"
 
-    def __init__(self, google_key_file, spreadsheet_id, sheet_name, sketch_name, commit_hash, commit_url, fqbn, flash,
-                 ram):
-        self.google_key_file = google_key_file
+    class ReportKeys:
+        fqbn = "fqbn"
+        commit_hash = "commit_hash"
+        commit_url = "commit_url"
+        sketch = "sketch"
+        flash = "flash"
+        ram = "ram"
+
+    def __init__(self, sketches_report_path, google_key_file, spreadsheet_id, sheet_name):
+        absolute_sketches_report_path = absolute_path(sketches_report_path)
+        if not absolute_sketches_report_path.exists():
+            print("::error::Sketches report path:", sketches_report_path, "doesn't exist")
+            sys.exit(1)
+        # load the data from the sketches report
+        sketches_report = get_sketches_report(sketches_report_path=absolute_sketches_report_path)
+        self.fqbn = sketches_report[self.ReportKeys.fqbn]
+        self.commit_hash = sketches_report[self.ReportKeys.commit_hash]
+        self.commit_url = sketches_report[self.ReportKeys.commit_url]
+        self.sketches_data = [sketches_report]
+
+        self.service = get_service(google_key_file=google_key_file)
         self.sheet_name = sheet_name
         self.spreadsheet_id = spreadsheet_id
-        self.fqbn = fqbn
-        self.commit_hash = commit_hash
-        self.sketch_name = sketch_name
-        self.commit_url = commit_url
-        self.flash = flash
-        self.ram = ram
 
     def report_size_trends(self):
         """Add memory usage data to a Google Sheets spreadsheet"""
-        self.service = self.get_service(google_key_file=self.google_key_file)
-
         heading_row_data = self.get_heading_row_data()
 
         if ("values" in heading_row_data) is False:
             # Fresh sheet, so fill in the shared data headings
-            logger.info("Initializing empty sheet")
+            print("Initializing empty sheet")
             self.populate_shared_data_headings()
 
             # Get the heading row data again in case it changed
             heading_row_data = self.get_heading_row_data()
 
-        data_column_letters = self.get_data_column_letters(heading_row_data=heading_row_data)
+        for sketch_data in self.sketches_data:
+            data_column_letters = self.get_data_column_letters(heading_row_data=heading_row_data)
 
-        if not data_column_letters["populated"]:
-            # Columns don't exist for this board yet, so create them
-            self.populate_data_column_headings(flash_column_letter=data_column_letters["flash"],
-                                               ram_column_letter=data_column_letters["ram"])
+            if not data_column_letters["populated"]:
+                # Columns don't exist for this board yet, so create them
+                self.populate_data_column_headings(flash_column_letter=data_column_letters["flash"],
+                                                   ram_column_letter=data_column_letters["ram"])
 
-        current_row = self.get_current_row()
+            current_row = self.get_current_row()
 
-        if not current_row["populated"]:
-            # A row doesn't exist for this commit yet, so create one
-            self.create_row(row_number=current_row["number"])
+            if not current_row["populated"]:
+                # A row doesn't exist for this commit yet, so create one
+                self.create_row(row_number=current_row["number"], sketch_path=sketch_data[self.ReportKeys.sketch])
 
-        self.write_memory_usage_data(flash_column_letter=data_column_letters["flash"],
-                                     ram_column_letter=data_column_letters["ram"],
-                                     row_number=current_row["number"],
-                                     flash=self.flash,
-                                     ram=self.ram)
-
-    def get_service(self, google_key_file):
-        """Return the Google API service object
-
-        Keyword arguments:
-        google_key_file -- contents of the Google private key file
-        """
-        credentials = service_account.Credentials.from_service_account_info(
-            json.loads(google_key_file, strict=False), scopes=['https://www.googleapis.com/auth/spreadsheets'])
-        return discovery.build('sheets', 'v4', credentials=credentials)
+            self.write_memory_usage_data(flash_column_letter=data_column_letters["flash"],
+                                         ram_column_letter=data_column_letters["ram"],
+                                         row_number=current_row["number"],
+                                         flash=sketch_data[self.ReportKeys.flash],
+                                         ram=sketch_data[self.ReportKeys.ram])
 
     def get_heading_row_data(self):
         """Return the contents of the heading row"""
@@ -227,18 +220,19 @@ class ReportSizeTrends:
         logger.info("Current row number: " + str(index))
         return {"populated": populated, "number": index}
 
-    def create_row(self, row_number):
+    def create_row(self, row_number, sketch_path):
         """Add the shared data to the row
 
         Keyword arguments:
         row_number -- row number
+        sketch_path -- path to the sketch the row's data is for
         """
         logger.info("No row found for the commit hash: " + self.commit_hash + ". Creating a new row #"
                     + str(row_number))
         spreadsheet_range = (self.sheet_name + "!" + self.shared_data_first_column_letter + str(row_number)
                              + ":" + self.shared_data_last_column_letter + str(row_number))
         shared_data_columns_data = ("[[\"" + "{:%Y-%m-%d %H:%M:%S}".format(datetime.datetime.now()) + "\",\""
-                                    + self.sketch_name + "\",\"=HYPERLINK(\\\"" + self.commit_url + "\\\",T(\\\""
+                                    + sketch_path + "\",\"=HYPERLINK(\\\"" + self.commit_url + "\\\",T(\\\""
                                     + self.commit_hash + "\\\"))\"]]")
         request = self.service.spreadsheets().values().update(spreadsheetId=self.spreadsheet_id,
                                                               range=spreadsheet_range,
@@ -259,7 +253,7 @@ class ReportSizeTrends:
         """
         spreadsheet_range = (self.sheet_name + "!" + flash_column_letter + str(row_number) + ":"
                              + ram_column_letter + str(row_number))
-        size_data = "[[" + flash + "," + ram + "]]"
+        size_data = "[[" + str(flash) + "," + str(ram) + "]]"
         request = self.service.spreadsheets().values().update(spreadsheetId=self.spreadsheet_id,
                                                               range=spreadsheet_range,
                                                               valueInputOption="RAW",
@@ -268,30 +262,45 @@ class ReportSizeTrends:
         logger.debug(response)
 
 
+def absolute_path(path):
+    """Returns the absolute path equivalent. Relative paths are assumed to be relative to the workspace of the action's
+    Docker container (the root of the repository).
+
+    Keyword arguments:
+    path -- the path to make absolute
+    """
+    path = pathlib.Path(path)
+    if not path.is_absolute():
+        # path is relative
+        path = pathlib.Path(os.environ["GITHUB_WORKSPACE"], path)
+
+    return path.resolve()
+
+
+def get_sketches_report(sketches_report_path):
+    """Return the data read from the JSON-formatted sketches report file
+
+    Keyword arguments:
+    path -- the path of the sketches report folder
+    """
+    sketches_report_file_path = next(sketches_report_path.glob("*.json"))
+    with sketches_report_file_path.open() as sketches_report_file:
+        sketches_report = json.load(sketches_report_file)
+
+    return sketches_report
+
+
+def get_service(google_key_file):
+    """Return the Google API service object
+
+    Keyword arguments:
+    google_key_file -- contents of the Google private key file
+    """
+    credentials = service_account.Credentials.from_service_account_info(
+        info=json.loads(google_key_file, strict=False), scopes=['https://www.googleapis.com/auth/spreadsheets'])
+    return discovery.build(serviceName='sheets', version='v4', credentials=credentials)
+
+
 # Only execute the following code if the script is run directly, not imported
 if __name__ == '__main__':
-    # Parse command line arguments
-    argument_parser = argparse.ArgumentParser()
-    argument_parser.add_argument("--google-key-file", dest="google_key_file",
-                                 help="Contents of the Google authentication key file")
-    argument_parser.add_argument("--spreadsheet-id", dest="spreadsheet_id",
-                                 help="ID of the Google Sheets spreadsheet to edit")
-    argument_parser.add_argument("--sheet-name", dest="sheet_name",
-                                 help="Sheet name of the Google Sheets spreadsheet to edit")
-    argument_parser.add_argument("--sketch-name", dest="sketch_name",
-                                 help="Name of the sketch the size data is from")
-    argument_parser.add_argument("--commit-hash", dest="commit_hash",
-                                 help="Commit hash the size data is for")
-    argument_parser.add_argument("--commit-url", dest="commit_url",
-                                 help="URL of the commit")
-    argument_parser.add_argument("--fqbn", dest="fqbn",
-                                 help="FQBN of the board being compiled for")
-    argument_parser.add_argument("--flash", dest="flash",
-                                 help="Flash usage of the sketch")
-    argument_parser.add_argument("--ram", dest="ram",
-                                 help="RAM usage for global variables of the sketch")
-    argument_parser.add_argument("--verbose", dest="enable_verbosity", help="Enable verbose output",
-                                 action="store_true")
-
-    # Run program
-    main(argument_parser.parse_args())
+    main()

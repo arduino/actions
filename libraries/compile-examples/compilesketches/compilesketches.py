@@ -18,10 +18,17 @@ import github
 import yaml
 import yaml.parser
 
-import reportsizetrends
-
 
 def main():
+    if "INPUT_SIZE-DELTAS-REPORT-FOLDER-NAME" in os.environ:
+        print("::warning::The size-deltas-report-folder-name input is deprecated. Use the equivalent input: "
+              "sketches-report-path instead.")
+        os.environ["INPUT_SKETCHES-REPORT-PATH"] = os.environ["INPUT_SIZE-DELTAS-REPORT-FOLDER-NAME"]
+
+    if "INPUT_ENABLE-SIZE-TRENDS-REPORT" in os.environ:
+        print("::warning::The size trends report feature has been moved to a dedicated action. See the documentation "
+              "at https://github.com/arduino/actions/tree/report-size-trends-action/libraries/report-size-trends")
+
     compile_sketches = CompileSketches(
         cli_version=os.environ["INPUT_CLI-VERSION"],
         fqbn_arg=os.environ["INPUT_FQBN"],
@@ -32,11 +39,7 @@ def main():
         github_token=os.environ["INPUT_GITHUB-TOKEN"],
         report_sketch=os.environ["INPUT_SIZE-REPORT-SKETCH"],
         enable_size_deltas_report=os.environ["INPUT_ENABLE-SIZE-DELTAS-REPORT"],
-        sketches_report_path=os.environ["INPUT_SIZE-DELTAS-REPORT-FOLDER-NAME"],
-        enable_size_trends_report=os.environ["INPUT_ENABLE-SIZE-TRENDS-REPORT"],
-        google_key_file=os.environ["INPUT_KEYFILE"],
-        size_trends_report_spreadsheet_id=os.environ["INPUT_SIZE-TRENDS-REPORT-SPREADSHEET-ID"],
-        size_trends_report_sheet_name=os.environ["INPUT_SIZE-TRENDS-REPORT-SHEET-NAME"]
+        sketches_report_path=os.environ["INPUT_SKETCHES-REPORT-PATH"]
     )
 
     compile_sketches.compile_sketches()
@@ -59,13 +62,6 @@ class CompileSketches:
     enable_size_deltas_report -- set to "true" to cause the action to determine the change in memory usage for the
                                  report_sketch ("true", "false")
     sketches_report_path -- folder to save the sketches report to
-    enable_size_trends_report -- whether to record the memory usage of report_sketch
-                                 ("true", "false")
-    google_key_file -- Google key file used to update the size trends report Google Sheets spreadsheet
-    size_trends_report_spreadsheet_id -- the ID of the Google Sheets spreadsheet to write the memory usage trends data
-                                         to
-    size_trends_report_sheet_name -- the sheet name in the Google Sheets spreadsheet used for the memory usage trends
-                                     report
     """
 
     class RunCommandOutput(enum.Enum):
@@ -83,6 +79,8 @@ class CompileSketches:
     board_manager_platforms_path = arduino_cli_data_directory_path.joinpath("packages")
 
     report_fqbn_key = "fqbn"
+    report_commit_hash_key = "commit_hash"
+    report_commit_url_key = "commit_url"
     report_sketch_key = "sketch"
     report_compilation_success_key = "compilation_success"
     report_flash_key = "flash"
@@ -101,8 +99,7 @@ class CompileSketches:
     latest_release_indicator = "latest"
 
     def __init__(self, cli_version, fqbn_arg, platforms, libraries, sketch_paths, verbose, github_token, report_sketch,
-                 enable_size_deltas_report, sketches_report_path, enable_size_trends_report, google_key_file,
-                 size_trends_report_spreadsheet_id, size_trends_report_sheet_name):
+                 enable_size_deltas_report, sketches_report_path):
         """Process, store, and validate the action's inputs."""
         self.cli_version = cli_version
 
@@ -135,25 +132,7 @@ class CompileSketches:
 
         self.sketches_report_path = pathlib.PurePath(sketches_report_path)
 
-        self.enable_size_trends_report = parse_boolean_input(boolean_input=enable_size_trends_report)
-        # The enable-size-trends-report input has a default value so it should always be either True or False
-        if self.enable_size_trends_report is None:
-            print("::error::Invalid value for enable-size-trends-report input")
-            sys.exit(1)
-
-        self.google_key_file = google_key_file
-        if self.enable_size_trends_report and self.google_key_file == "":
-            print("::error::keyfile input was not defined")
-            sys.exit(1)
-
-        self.size_trends_report_spreadsheet_id = size_trends_report_spreadsheet_id
-        if self.enable_size_trends_report and self.size_trends_report_spreadsheet_id == "":
-            print("::error::size-trends-report-spreadsheet-id input was not defined")
-            sys.exit(1)
-
-        self.size_trends_report_sheet_name = size_trends_report_sheet_name
-
-        if (self.enable_size_deltas_report or self.enable_size_trends_report) and self.report_sketch == "":
+        if self.enable_size_deltas_report and self.report_sketch == "":
             print("::error::size-report-sketch input was not defined")
             sys.exit(1)
 
@@ -183,9 +162,6 @@ class CompileSketches:
         if self.report_sketch != "":
             # Make sketch reports
             sketch_report = self.get_sketch_report_from_sketches_report(sketches_report=sketches_report)
-            # Make the memory usage trends report
-            if self.do_size_trends_report():
-                self.make_size_trends_report(sketch_report=sketch_report)
             # TODO: The current behavior is to only write the report for the report sketch, but the plan is to change to
             #       reporting data for all sketches, thus the passing of sketch_report to the function
             self.create_sketches_report_file(sketches_report=sketch_report)
@@ -966,32 +942,6 @@ class CompileSketches:
 
         return sketch_report
 
-    def do_size_trends_report(self):
-        """Return whether the size trends report is enabled"""
-        return (
-            self.enable_size_trends_report
-            and os.environ["GITHUB_EVENT_NAME"] == "push"
-            and self.is_default_branch()
-        )
-
-    def is_default_branch(self):
-        """Return whether the current branch is the repository's default branch"""
-        current_branch_name = os.environ["GITHUB_REF"].rpartition("/")[2]
-
-        try:
-            default_branch_name = self.github_api.get_repo(os.environ["GITHUB_REPOSITORY"]).default_branch
-        except github.UnknownObjectException:
-            print("::error::Unable to access repository data. Please specify the github-token input in your workflow"
-                  " configuration.")
-            sys.exit(1)
-
-        if current_branch_name != default_branch_name:
-            is_default_branch = False
-        else:
-            is_default_branch = True
-
-        return is_default_branch
-
     def get_sketch_report_from_sketches_report(self, sketches_report):
         """Return the report for the report sketch
 
@@ -1009,34 +959,6 @@ class CompileSketches:
         print("::error::size-report-sketch:", self.report_sketch, "was not found")
         sys.exit(1)
 
-    def make_size_trends_report(self, sketch_report):
-        """Publish the size data for the report sketch to a Google Sheets spreadsheet.
-
-        Keyword arguments:
-        sketch_report -- report for the sketch report
-        """
-        # Get the short hash of the pull request head ref
-        self.verbose_print("Making size trends report")
-        repository = git.Repo(path=os.environ["GITHUB_WORKSPACE"])
-        current_git_ref = repository.git.rev_parse("HEAD", short=True)
-
-        report_size_trends = reportsizetrends.ReportSizeTrends(
-            google_key_file=self.google_key_file,
-            spreadsheet_id=self.size_trends_report_spreadsheet_id,
-            sheet_name=self.size_trends_report_sheet_name,
-            sketch_name=sketch_report[self.report_sketch_key],
-            commit_hash=current_git_ref,
-            commit_url=("https://github.com/"
-                        + os.environ["GITHUB_REPOSITORY"]
-                        + "/commit/"
-                        + current_git_ref),
-            fqbn=self.fqbn,
-            flash=str(sketch_report[self.report_flash_key]),
-            ram=str(sketch_report[self.report_ram_key])
-        )
-
-        report_size_trends.report_size_trends()
-
     def create_sketches_report_file(self, sketches_report):
         """Write the report for the report sketch to a file.
 
@@ -1044,10 +966,21 @@ class CompileSketches:
         sketch_report -- report for the sketch report
         """
         self.verbose_print("Creating sketch report file")
-        # Add the FQBN to the report
+        # Add the shared data to the report
         # TODO: doing this here is in anticipation of the planned switch to reporting for all sketches, when it will
-        #       make sense to only add a single fqbn key to the report
+        #       make sense to only add a single copy of the data that's universal to all sketches to the report
         sketches_report[self.report_fqbn_key] = self.fqbn
+
+        # Get the short hash of the pull request head ref
+        repository = git.Repo(path=os.environ["GITHUB_WORKSPACE"])
+        current_git_ref = repository.git.rev_parse("HEAD", short=True)
+        sketches_report[self.report_commit_hash_key] = current_git_ref
+
+        sketches_report[self.report_commit_url_key] = ("https://github.com/"
+                                                       + os.environ["GITHUB_REPOSITORY"]
+                                                       + "/commit/"
+                                                       + current_git_ref)
+
         sketches_report_path = absolute_path(path=self.sketches_report_path)
 
         # Create the report folder
