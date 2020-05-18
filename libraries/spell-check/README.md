@@ -1,6 +1,6 @@
 # libraries/spell-check action
 
-Runs codespell on library source code and examples contained in the library.
+Runs [codespell](https://github.com/codespell-project/codespell) on library source code and examples contained in the library.
 
 ## Inputs
 
