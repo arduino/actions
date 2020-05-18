@@ -62,7 +62,6 @@ class ReportSizeDeltas:
         """Scan the repository's pull requests to see if any need reports and return a list of the reports submitted"""
         # Get the repository's pull requests
         logger.debug("Getting PRs for " + self.repository_name)
-        report_list = []
         page_number = 1
         page_count = 1
         while page_number <= page_count:
@@ -101,14 +100,11 @@ class ReportSizeDeltas:
                                               pr_head_sha=pr_head_sha,
                                               pr_number=pr_number)
 
-                self.comment_report(pr_number=pr_number, report_markdown=report["markdown"])
 
-                report_list = report_list + [{"pr_number": pr_number, "report": report["data"]}]
+                self.comment_report(pr_number=pr_number, report_markdown=report)
 
             page_number += 1
             page_count = api_data["page_count"]
-
-        return report_list
 
     def report_exists(self, pr_number, pr_head_sha):
         """Return whether a report has already been commented to the pull request thread for the latest workflow run
@@ -245,7 +241,7 @@ class ReportSizeDeltas:
                                        + generate_value_cell(report_data["ram_delta"]))
 
         logger.debug("Report:\n" + report_markdown)
-        return {"markdown": report_markdown, "data": reports_data}
+        return report_markdown
 
     def comment_report(self, pr_number, report_markdown):
         """Submit the report as a comment on the PR thread

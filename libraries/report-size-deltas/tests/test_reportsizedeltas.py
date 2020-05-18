@@ -19,71 +19,89 @@ def test_set_verbosity():
     reportsizedeltas.set_verbosity(enable_verbosity=False)
 
 
-def test_report_size_deltas():
-    repository_name = "test_name/test_repo"
+def test_report_size_deltas(mocker):
     artifact_download_url = "test_artifact_download_url"
     artifact_folder_object = "test_artifact_folder_object"
-    report = {"markdown": "test_markdown", "data": "test_data"}
-
-    report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name=repository_name, artifact_name="foo",
-                                                           token="foo")
-
+    report = "foo report"
     json_data = [{"number": 1, "locked": True, "head": {"sha": "foo123", "ref": "asdf"}, "user": {"login": "1234"}},
-                 {"number": 2, "locked": True, "head": {"sha": "foo123", "ref": "asdf"},
-                  "user": {"login": "1234"}}]
-    report_size_deltas.api_request = unittest.mock.MagicMock(return_value={"json_data": json_data,
-                                                                           "additional_pages": True,
-                                                                           "page_count": 1})
+                 {"number": 2, "locked": False, "head": {"sha": "foo123", "ref": "asdf"}, "user": {"login": "1234"}}]
+
+    report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name="foo/bar", artifact_name="foo", token="foo")
+
+    mocker.patch("reportsizedeltas.ReportSizeDeltas.api_request",
+                 autospec=True,
+                 return_value={"json_data": json_data,
+                               "additional_pages": True,
+                               "page_count": 1})
+    mocker.patch("reportsizedeltas.ReportSizeDeltas.report_exists", autospec=True, return_value=False)
+    mocker.patch("reportsizedeltas.ReportSizeDeltas.get_artifact_download_url_for_sha",
+                 autospec=True,
+                 return_value=artifact_download_url)
+    mocker.patch("reportsizedeltas.ReportSizeDeltas.get_artifact", autospec=True, return_value=artifact_folder_object)
+    mocker.patch("reportsizedeltas.ReportSizeDeltas.generate_report", autospec=True, return_value=report)
+    mocker.patch("reportsizedeltas.ReportSizeDeltas.comment_report", autospec=True)
 
     # Test handling of locked PR
-    assert [] == report_size_deltas.report_size_deltas()
-    calls = [unittest.mock.call(request="repos/" + repository_name + "/pulls",
-                                page_number=1)]
-    report_size_deltas.api_request.assert_has_calls(calls)
+    mocker.resetall()
+
+    report_size_deltas.report_size_deltas()
+
+    report_size_deltas.comment_report.assert_called_once_with(report_size_deltas, pr_number=2, report_markdown=report)
 
     # Test handling of existing reports
-    report_size_deltas.report_exists = unittest.mock.MagicMock(return_value=True)
-
     for pr_data in json_data:
         pr_data["locked"] = False
+    reportsizedeltas.ReportSizeDeltas.report_exists.return_value = True
+    mocker.resetall()
 
-    assert [] == report_size_deltas.report_size_deltas()
+    report_size_deltas.report_size_deltas()
 
-    calls = []
-    for pr_data in json_data:
-        calls = calls + [unittest.mock.call(pr_number=pr_data["number"], pr_head_sha=json_data[0]["head"]["sha"])]
-
-    report_size_deltas.report_exists.assert_has_calls(calls)
+    report_size_deltas.comment_report.assert_not_called()
 
     # Test handling of no report artifact
-    report_size_deltas.report_exists = unittest.mock.MagicMock(return_value=False)
+    reportsizedeltas.ReportSizeDeltas.report_exists.return_value = False
+    reportsizedeltas.ReportSizeDeltas.get_artifact_download_url_for_sha.return_value = None
+    mocker.resetall()
 
-    report_size_deltas.get_artifact_download_url_for_sha = unittest.mock.MagicMock(return_value=None)
+    report_size_deltas.report_size_deltas()
 
-    assert [] == report_size_deltas.report_size_deltas()
-
-    calls = []
-    for pr_data in json_data:
-        calls = calls + [unittest.mock.call(pr_user_login=pr_data["user"]["login"],
-                                            pr_head_ref=pr_data["head"]["ref"],
-                                            pr_head_sha=pr_data["head"]["sha"])]
-
-    report_size_deltas.get_artifact_download_url_for_sha.assert_has_calls(calls)
+    report_size_deltas.comment_report.assert_not_called()
 
     # Test making reports
-    report_size_deltas.get_artifact_download_url_for_sha = unittest.mock.MagicMock(
-        return_value=artifact_download_url)
+    reportsizedeltas.ReportSizeDeltas.get_artifact_download_url_for_sha.return_value = artifact_download_url
+    reportsizedeltas.ReportSizeDeltas.generate_report.return_value = report
+    mocker.resetall()
 
-    report_size_deltas.get_artifact = unittest.mock.MagicMock(return_value=artifact_folder_object)
+    report_size_deltas.report_size_deltas()
 
-    report_size_deltas.generate_report = unittest.mock.MagicMock(return_value=report)
-
-    report_size_deltas.comment_report = unittest.mock.MagicMock()
-
-    report_list = []
+    report_exists_calls = []
+    get_artifact_download_url_for_sha_calls = []
+    generate_report_calls = []
+    comment_report_calls = []
     for pr_data in json_data:
-        report_list = report_list + [{"pr_number": pr_data["number"], "report": report["data"]}]
-    assert report_list == report_size_deltas.report_size_deltas()
+        report_exists_calls.append(
+            unittest.mock.call(report_size_deltas, pr_number=pr_data["number"], pr_head_sha=json_data[0]["head"]["sha"])
+        )
+        get_artifact_download_url_for_sha_calls.append(
+            unittest.mock.call(report_size_deltas,
+                               pr_user_login=pr_data["user"]["login"],
+                               pr_head_ref=pr_data["head"]["ref"],
+                               pr_head_sha=pr_data["head"]["sha"])
+        )
+        generate_report_calls.append(
+            unittest.mock.call(report_size_deltas,
+                               artifact_folder_object=artifact_folder_object,
+                               pr_head_sha=pr_data["head"]["sha"],
+                               pr_number=pr_data["number"])
+        )
+        comment_report_calls.append(
+            unittest.mock.call(report_size_deltas, pr_number=pr_data["number"], report_markdown=report)
+        )
+    report_size_deltas.report_exists.assert_has_calls(calls=report_exists_calls)
+    report_size_deltas.get_artifact_download_url_for_sha.assert_has_calls(calls=get_artifact_download_url_for_sha_calls)
+    report_size_deltas.get_artifact.assert_called_with(report_size_deltas, artifact_download_url=artifact_download_url)
+    report_size_deltas.generate_report.assert_has_calls(calls=generate_report_calls)
+    report_size_deltas.comment_report.assert_has_calls(calls=comment_report_calls)
 
 
 def test_report_exists():
@@ -220,41 +238,7 @@ def test_generate_report():
           "arduino:samd:mkrgsm1400 | N/A | N/A\n"
           "arduino:samd:mkrnb1500 | :green_heart: -24 | 0\n"
           "esp8266:esp8266:huzzah | :small_red_triangle: +32 | :small_red_triangle: +16")
-    assert report_markdown == report["markdown"]
-
-    report_data = [{'flash': 10580,
-                    'flash_delta': 0,
-                    'fqbn': 'adafruit:samd:adafruit_feather_m0',
-                    'previous_flash': 10580,
-                    'previous_ram': 'N/A',
-                    'ram': 'N/A',
-                    'ram_delta': 'N/A',
-                    'sketch': 'examples/ConnectionHandlerDemo'},
-                   {'flash': 51636,
-                    'flash_delta': 'N/A',
-                    'fqbn': 'arduino:samd:mkrgsm1400',
-                    'previous_flash': 'N/A',
-                    'previous_ram': 'N/A',
-                    'ram': 5104,
-                    'ram_delta': 'N/A',
-                    'sketch': 'examples/ConnectionHandlerDemo'},
-                   {'flash': 50940,
-                    'flash_delta': -24,
-                    'fqbn': 'arduino:samd:mkrnb1500',
-                    'previous_flash': 50964,
-                    'previous_ram': 5068,
-                    'ram': 5068,
-                    'ram_delta': 0,
-                    'sketch': 'examples/ConnectionHandlerDemo'},
-                   {'flash': 274620,
-                    'flash_delta': 32,
-                    'fqbn': 'esp8266:esp8266:huzzah',
-                    'previous_flash': 274588,
-                    'previous_ram': 27480,
-                    'ram': 27496,
-                    'ram_delta': 16,
-                    'sketch': 'examples/ConnectionHandlerDemo'}]
-    assert report_data == report["data"]
+    assert report_markdown == report
 
 
 def test_comment_report():
