@@ -57,15 +57,13 @@ class ReportSizeTrends:
     heading_row_number = "1"
     timestamp_column_letter = "A"
     timestamp_column_heading = "Commit Timestamp"
-    sketch_name_column_letter = "B"
-    sketch_name_column_heading = "Sketch Name"
-    commit_hash_column_letter = "C"
+    commit_hash_column_letter = "B"
     commit_hash_column_heading = "Commit Hash"
     shared_data_first_column_letter = timestamp_column_letter
     shared_data_last_column_letter = commit_hash_column_letter
     shared_data_columns_headings_data = (
-        "[[\"" + timestamp_column_heading + "\",\"" + sketch_name_column_heading + "\",\""
-        + commit_hash_column_heading + "\"]]")
+        "[[\"" + timestamp_column_heading + "\",\"" + commit_hash_column_heading + "\"]]"
+    )
 
     # These are appended to the FQBN as the size data column headings
     flash_heading_indicator = " flash"
@@ -75,9 +73,11 @@ class ReportSizeTrends:
         fqbn = "fqbn"
         commit_hash = "commit_hash"
         commit_url = "commit_url"
+        sizes = "sizes"
+        name = "name"
+        absolute = "absolute"
+        current = "current"
         sketch = "sketch"
-        flash = "flash"
-        ram = "ram"
 
     def __init__(self, sketches_report_path, google_key_file, spreadsheet_id, sheet_name):
         absolute_sketches_report_path = absolute_path(sketches_report_path)
@@ -89,7 +89,7 @@ class ReportSizeTrends:
         self.fqbn = sketches_report[self.ReportKeys.fqbn]
         self.commit_hash = sketches_report[self.ReportKeys.commit_hash]
         self.commit_url = sketches_report[self.ReportKeys.commit_url]
-        self.sketches_data = [sketches_report]
+        self.sketch_reports = sketches_report[self.ReportKeys.sketch]
 
         self.service = get_service(google_key_file=google_key_file)
         self.sheet_name = sheet_name
@@ -104,28 +104,13 @@ class ReportSizeTrends:
             print("Initializing empty sheet")
             self.populate_shared_data_headings()
 
-            # Get the heading row data again in case it changed
-            heading_row_data = self.get_heading_row_data()
+        for sketch_report in self.sketch_reports:
+            for size_report in sketch_report[self.ReportKeys.sizes]:
+                # Update the heading row data so it will reflect the changes made in each iteration
+                heading_row_data = self.get_heading_row_data()
 
-        for sketch_data in self.sketches_data:
-            data_column_letters = self.get_data_column_letters(heading_row_data=heading_row_data)
-
-            if not data_column_letters["populated"]:
-                # Columns don't exist for this board yet, so create them
-                self.populate_data_column_headings(flash_column_letter=data_column_letters["flash"],
-                                                   ram_column_letter=data_column_letters["ram"])
-
-            current_row = self.get_current_row()
-
-            if not current_row["populated"]:
-                # A row doesn't exist for this commit yet, so create one
-                self.create_row(row_number=current_row["number"], sketch_path=sketch_data[self.ReportKeys.sketch])
-
-            self.write_memory_usage_data(flash_column_letter=data_column_letters["flash"],
-                                         ram_column_letter=data_column_letters["ram"],
-                                         row_number=current_row["number"],
-                                         flash=sketch_data[self.ReportKeys.flash],
-                                         ram=sketch_data[self.ReportKeys.ram])
+                self.report_size_trend(heading_row_data=heading_row_data, sketch_report=sketch_report,
+                                       size_report=size_report)
 
     def get_heading_row_data(self):
         """Return the contents of the heading row"""
@@ -136,8 +121,32 @@ class ReportSizeTrends:
         logger.debug(response)
         return response
 
+    def report_size_trend(self, heading_row_data, sketch_report, size_report):
+        """Add data for a single FQBN, sketch, and memory type to the sheet."""
+        data_column_letter = self.get_data_column_letter(heading_row_data=heading_row_data,
+                                                         sketch_name=sketch_report[self.ReportKeys.name],
+                                                         size_name=size_report[self.ReportKeys.name])
+
+        if not data_column_letter["populated"]:
+            # Columns don't exist for this board, sketch, memory type yet, so create them
+            self.populate_data_column_heading(data_column_letter=data_column_letter["letter"],
+                                              sketch_name=sketch_report[self.ReportKeys.name],
+                                              size_name=size_report[self.ReportKeys.name])
+
+        current_row = self.get_current_row()
+
+        if not current_row["populated"]:
+            # A row doesn't exist for this commit yet, so create one
+            self.create_row(row_number=current_row["number"])
+
+        self.write_memory_usage_data(
+            column_letter=data_column_letter["letter"],
+            row_number=current_row["number"],
+            memory_usage=size_report[self.ReportKeys.current][self.ReportKeys.absolute]
+        )
+
     def populate_shared_data_headings(self):
-        """Add the headings to the shared data columns (timestamp, sketch name, commit)"""
+        """Add the headings to the shared data columns (timestamp, commit)"""
         spreadsheet_range = (
             self.sheet_name + "!" + self.shared_data_first_column_letter + self.heading_row_number + ":"
             + self.shared_data_last_column_letter + self.heading_row_number)
@@ -149,49 +158,48 @@ class ReportSizeTrends:
         response = request.execute()
         logger.debug(response)
 
-    def get_data_column_letters(self, heading_row_data):
-        """Return a dictionary containing the data column numbers for the board
+    def get_data_column_letter(self, heading_row_data, sketch_name, size_name):
+        """Return a dictionary containing the data column letter for this board, sketch, size type.
         populated -- whether the column headings have been added
-        flash -- letter of the column containing flash usage data
-        ram -- letter of the column containing ram usage data
+        letter -- letter of the column containing memory usage data
 
         Keyword arguments:
         heading_row_data -- the contents of the heading row of the spreadsheet, as returned by get_heading_row_data()
+        sketch_name -- the sketch path
+        size_name -- the name of the memory type
         """
         populated = False
         index = 0
         for index, cell_text in enumerate(heading_row_data["values"][0]):
-            if cell_text == self.fqbn + self.flash_heading_indicator:
+            if cell_text == self.fqbn + "\n" + sketch_name + "\n" + size_name:
                 populated = True
                 break
 
         if not populated:
-            # Use the next columns
+            # Use the next column
             index += 1
 
-        board_data_flash_column_letter = chr(index + 65)
-        board_data_ram_column_letter = chr(index + 1 + 65)
-        logger.info("Flash data column: " + board_data_flash_column_letter)
-        logger.info("RAM data column: " + board_data_ram_column_letter)
-        return {"populated": populated, "flash": board_data_flash_column_letter, "ram": board_data_ram_column_letter}
+        data_column_letter = chr(index + 65)
+        logger.info(size_name, "data column:", data_column_letter)
+        return {"populated": populated, "letter": data_column_letter}
 
-    def populate_data_column_headings(self, flash_column_letter, ram_column_letter):
-        """Add the headings to the data columns for this FQBN
+    def populate_data_column_heading(self, data_column_letter, sketch_name, size_name):
+        """Add the heading to the specified data column.
 
         Keyword arguments:
-        flash_column_letter -- letter of the column that contains the flash usage data
-        ram_column_letter -- letter of the column that contains the dynamic memory used by globals data
+        data_column_letter -- letter of the data column to populate
+        sketch_name -- the sketch path
+        size_name -- the name of the memory type
         """
-        logger.info("No data columns found for " + self.fqbn + ". Adding column headings at columns "
-                    + flash_column_letter + " and " + ram_column_letter)
-        spreadsheet_range = (self.sheet_name + "!" + flash_column_letter + self.heading_row_number + ":"
-                             + ram_column_letter + self.heading_row_number)
-        board_data_headings_data = ("[[\"" + self.fqbn + self.flash_heading_indicator + "\",\"" + self.fqbn
-                                    + self.ram_heading_indicator + "\"]]")
+        logger.info("No data columns found for " + self.fqbn + ", " + sketch_name + ", " + size_name
+                    + ". Adding column heading at column " + data_column_letter)
+        spreadsheet_range = (self.sheet_name + "!" + data_column_letter + self.heading_row_number + ":"
+                             + data_column_letter + self.heading_row_number)
+        data_heading_data = ("[[\"" + self.fqbn + "\\n" + sketch_name + "\\n" + size_name + "\"]]")
         request = self.service.spreadsheets().values().update(spreadsheetId=self.spreadsheet_id,
                                                               range=spreadsheet_range,
                                                               valueInputOption="RAW",
-                                                              body={"values": json.loads(board_data_headings_data)})
+                                                              body={"values": json.loads(data_heading_data)})
         response = request.execute()
         logger.debug(response)
 
@@ -220,19 +228,18 @@ class ReportSizeTrends:
         logger.info("Current row number: " + str(index))
         return {"populated": populated, "number": index}
 
-    def create_row(self, row_number, sketch_path):
+    def create_row(self, row_number):
         """Add the shared data to the row
 
         Keyword arguments:
-        row_number -- row number
-        sketch_path -- path to the sketch the row's data is for
+        row_number -- spreadsheet row number to create
         """
         logger.info("No row found for the commit hash: " + self.commit_hash + ". Creating a new row #"
                     + str(row_number))
         spreadsheet_range = (self.sheet_name + "!" + self.shared_data_first_column_letter + str(row_number)
                              + ":" + self.shared_data_last_column_letter + str(row_number))
-        shared_data_columns_data = ("[[\"" + "{:%Y-%m-%d %H:%M:%S}".format(datetime.datetime.now()) + "\",\""
-                                    + sketch_path + "\",\"=HYPERLINK(\\\"" + self.commit_url + "\\\",T(\\\""
+        shared_data_columns_data = ("[[\"" + "{:%Y-%m-%d %H:%M:%S}".format(datetime.datetime.now())
+                                    + "\",\"=HYPERLINK(\\\"" + self.commit_url + "\\\",T(\\\""
                                     + self.commit_hash + "\\\"))\"]]")
         request = self.service.spreadsheets().values().update(spreadsheetId=self.spreadsheet_id,
                                                               range=spreadsheet_range,
@@ -241,19 +248,17 @@ class ReportSizeTrends:
         response = request.execute()
         logger.debug(response)
 
-    def write_memory_usage_data(self, flash_column_letter, ram_column_letter, row_number, flash, ram):
-        """Write the memory usage data for the board to the spreadsheet
+    def write_memory_usage_data(self, column_letter, row_number, memory_usage):
+        """Write memory usage data to the specified cell of the spreadsheet.
 
         Keyword arguments:
-        flash_column_letter -- letter of the column containing flash memory usage data for the board
-        ram_column_letter -- letter of the column containing dynamic memory used for global variables for the board
+        column_letter -- letter of the column containing memory usage data for the board, sketch, memory type
         row_number -- number of the row to write to
-        flash -- flash usage
-        ram -- dynamic memory used for global variables
+        memory_usage -- memory usage
         """
-        spreadsheet_range = (self.sheet_name + "!" + flash_column_letter + str(row_number) + ":"
-                             + ram_column_letter + str(row_number))
-        size_data = "[[" + str(flash) + "," + str(ram) + "]]"
+        spreadsheet_range = (self.sheet_name + "!" + column_letter + str(row_number) + ":"
+                             + column_letter + str(row_number))
+        size_data = "[[" + str(memory_usage) + "]]"
         request = self.service.spreadsheets().values().update(spreadsheetId=self.spreadsheet_id,
                                                               range=spreadsheet_range,
                                                               valueInputOption="RAW",

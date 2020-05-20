@@ -30,23 +30,35 @@ reportsizetrends.set_verbosity(enable_verbosity=False)
 def get_reportsizetrends_object(fqbn="foo:bar:baz",
                                 commit_hash="foohash",
                                 commit_url="https://example.com/foo",
-                                sketches_data=None,
+                                sketch_reports=None,
                                 sketches_report_path="foo-sketches-report-path",
                                 google_key_file="foo-key-file",
                                 spreadsheet_id="foo-spreadsheet-id",
                                 sheet_name="foo-sheet-name"):
     # This system is needed to avoid sketches_data having a mutable default argument
-    if sketches_data is None:
-        sketches_data = [{reportsizetrends.ReportSizeTrends.ReportKeys.sketch: "FooSketch",
-                          reportsizetrends.ReportSizeTrends.ReportKeys.flash: 123,
-                          reportsizetrends.ReportSizeTrends.ReportKeys.ram: 42}]
+    if sketch_reports is None:
+        sketch_reports = {
+            reportsizetrends.ReportSizeTrends.ReportKeys.sketch: [
+                {
+                    reportsizetrends.ReportSizeTrends.ReportKeys.name: "FooSketch",
+                    reportsizetrends.ReportSizeTrends.ReportKeys.sizes: [
+                        {
+                            reportsizetrends.ReportSizeTrends.ReportKeys.name: "Foo memory type",
+                            reportsizetrends.ReportSizeTrends.ReportKeys.current: {
+                                reportsizetrends.ReportSizeTrends.ReportKeys.absolute: 123
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
 
     sketches_report = {reportsizetrends.ReportSizeTrends.ReportKeys.fqbn: fqbn,
                        reportsizetrends.ReportSizeTrends.ReportKeys.commit_hash: commit_hash,
                        reportsizetrends.ReportSizeTrends.ReportKeys.commit_url: commit_url}
 
     # Merge the dictionaries
-    sketches_report = {**sketches_report, **sketches_data[0]}
+    sketches_report = {**sketches_report, **sketch_reports}
 
     os.environ["GITHUB_WORKSPACE"] = "/foo/github-workspace"
     with unittest.mock.patch("pathlib.Path.exists", autospec=True, return_value=True):
@@ -102,12 +114,11 @@ def test_reportsizetrends(capsys, monkeypatch, mocker, report_path_exists):
     fqbn = "foo:bar:baz"
     commit_hash = "foohash"
     commit_url = "https://example.com/foo"
+    sketch_reports = unittest.mock.sentinel.sketch_reports
     sketches_report = {reportsizetrends.ReportSizeTrends.ReportKeys.fqbn: fqbn,
                        reportsizetrends.ReportSizeTrends.ReportKeys.commit_hash: commit_hash,
                        reportsizetrends.ReportSizeTrends.ReportKeys.commit_url: commit_url,
-                       reportsizetrends.ReportSizeTrends.ReportKeys.sketch: "FooSketch",
-                       reportsizetrends.ReportSizeTrends.ReportKeys.flash: 123,
-                       reportsizetrends.ReportSizeTrends.ReportKeys.ram: 42}
+                       reportsizetrends.ReportSizeTrends.ReportKeys.sketch: sketch_reports}
     sketches_report_path = "foo/sketches-report-path"
     google_key_file = "foo-key-file"
     service = unittest.mock.sentinel.service
@@ -141,73 +152,38 @@ def test_reportsizetrends(capsys, monkeypatch, mocker, report_path_exists):
         assert report_size_trends.fqbn == fqbn
         assert report_size_trends.commit_hash == commit_hash
         assert report_size_trends.commit_url == commit_url
-        assert report_size_trends.sketches_data == [sketches_report]
+        assert report_size_trends.sketch_reports == sketch_reports
         assert report_size_trends.service == service
         assert report_size_trends.spreadsheet_id == spreadsheet_id
         assert report_size_trends.sheet_name == sheet_name
 
 
-def test_report_size_trends():
-    google_key_file = "test_google_key_file"
-    sketch_path = "foo/SketchPath"
-    flash = 42
-    ram = 11
-    sketches_data = [{reportsizetrends.ReportSizeTrends.ReportKeys.sketch: sketch_path,
-                      reportsizetrends.ReportSizeTrends.ReportKeys.flash: flash,
-                      reportsizetrends.ReportSizeTrends.ReportKeys.ram: ram}]
-    heading_row_data = {}
-    current_row = {"populated": False, "number": 42}
-    data_column_letters = {"populated": False, "flash": "A", "ram": "B"}
-
-    report_size_trends = get_reportsizetrends_object(google_key_file=google_key_file, sketches_data=sketches_data)
+@pytest.mark.parametrize("heading_row_data", [{}, {"values": "foo"}])
+def test_report_size_trends(heading_row_data):
+    report_size_trends = get_reportsizetrends_object()
 
     report_size_trends.get_heading_row_data = unittest.mock.MagicMock(return_value=heading_row_data)
     report_size_trends.populate_shared_data_headings = unittest.mock.MagicMock()
-    report_size_trends.get_data_column_letters = unittest.mock.MagicMock(return_value=data_column_letters)
-    report_size_trends.populate_data_column_headings = unittest.mock.MagicMock()
-    report_size_trends.get_current_row = unittest.mock.MagicMock(return_value=current_row)
-    report_size_trends.create_row = unittest.mock.MagicMock()
-    report_size_trends.write_memory_usage_data = unittest.mock.MagicMock()
+    report_size_trends.report_size_trend = unittest.mock.MagicMock()
 
-    # Test unpopulated shared data headings
+    # There will always be at least one call one call of get_heading_row_data()
+    get_heading_row_data_calls = [unittest.mock.call()]
+    report_size_trend_calls = []
+    for sketch_report in report_size_trends.sketch_reports:
+        for size_report in sketch_report[reportsizetrends.ReportSizeTrends.ReportKeys.sizes]:
+            get_heading_row_data_calls.append(unittest.mock.call())
+            report_size_trend_calls.append(unittest.mock.call(heading_row_data=heading_row_data,
+                                                              sketch_report=sketch_report,
+                                                              size_report=size_report))
+
     report_size_trends.report_size_trends()
 
-    report_size_trends.get_heading_row_data.assert_has_calls([unittest.mock.call(), unittest.mock.call()])
-    report_size_trends.populate_shared_data_headings.assert_called_once()
-    report_size_trends.get_data_column_letters.assert_called_once_with(heading_row_data=heading_row_data)
-    report_size_trends.populate_data_column_headings.assert_called_once_with(
-        flash_column_letter=data_column_letters["flash"],
-        ram_column_letter=data_column_letters["ram"]
-    )
-    report_size_trends.get_current_row.assert_called_once()
-    report_size_trends.create_row.assert_called_once_with(row_number=current_row["number"], sketch_path=sketch_path)
-    report_size_trends.write_memory_usage_data.assert_called_once_with(
-        flash_column_letter=data_column_letters["flash"],
-        ram_column_letter=data_column_letters["ram"],
-        row_number=current_row["number"],
-        flash=flash,
-        ram=ram)
+    if "values" not in heading_row_data:
+        report_size_trends.populate_shared_data_headings.assert_called_once()
+    else:
+        report_size_trends.populate_shared_data_headings.assert_not_called()
 
-    # Test populated shared data headings
-    heading_row_data = {"values": "foo"}
-    report_size_trends.get_heading_row_data = unittest.mock.MagicMock(return_value=heading_row_data)
-    report_size_trends.populate_shared_data_headings.reset_mock()
-    report_size_trends.report_size_trends()
-    report_size_trends.populate_shared_data_headings.assert_not_called()
-
-    # Test pre-populated data column headings
-    data_column_letters["populated"] = True
-    report_size_trends.get_data_column_letters = unittest.mock.MagicMock(return_value=data_column_letters)
-    report_size_trends.populate_data_column_headings.reset_mock()
-    report_size_trends.report_size_trends()
-    report_size_trends.populate_data_column_headings.assert_not_called()
-
-    # Test pre-populated row
-    current_row["populated"] = True
-    report_size_trends.get_current_row = unittest.mock.MagicMock(return_value=current_row)
-    report_size_trends.create_row.reset_mock()
-    report_size_trends.report_size_trends()
-    report_size_trends.create_row.assert_not_called()
+    report_size_trends.report_size_trend.assert_has_calls(report_size_trend_calls)
 
 
 def test_get_heading_row_data():
@@ -225,6 +201,52 @@ def test_get_heading_row_data():
                          + report_size_trends.heading_row_number)
     Service.get.assert_called_once_with(spreadsheetId=spreadsheet_id, range=spreadsheet_range)
     Service.execute.assert_called_once()
+
+
+@pytest.mark.parametrize("data_column_letter_populated", [False, True])
+@pytest.mark.parametrize("current_row_populated", [False, True])
+def test_report_size_trend(data_column_letter_populated, current_row_populated):
+    current_row = {"populated": current_row_populated, "number": 42}
+    data_column_letter = {"populated": data_column_letter_populated, "letter": "A"}
+    heading_row_data = unittest.mock.sentinel.heading_row_data
+    report_keys = reportsizetrends.ReportSizeTrends.ReportKeys()
+
+    report_size_trends = get_reportsizetrends_object()
+
+    sketch_report = report_size_trends.sketch_reports[0]
+    size_report = sketch_report[report_keys.sizes][0]
+
+    report_size_trends.get_data_column_letter = unittest.mock.MagicMock(return_value=data_column_letter)
+    report_size_trends.populate_data_column_heading = unittest.mock.MagicMock()
+    report_size_trends.get_current_row = unittest.mock.MagicMock(return_value=current_row)
+    report_size_trends.create_row = unittest.mock.MagicMock()
+    report_size_trends.write_memory_usage_data = unittest.mock.MagicMock()
+
+    report_size_trends.report_size_trend(heading_row_data=heading_row_data,
+                                         sketch_report=sketch_report,
+                                         size_report=size_report)
+
+    if not data_column_letter["populated"]:
+        report_size_trends.populate_data_column_heading.assert_called_once_with(
+            data_column_letter=data_column_letter["letter"],
+            sketch_name=sketch_report[report_keys.name],
+            size_name=size_report[report_keys.name]
+        )
+    else:
+        report_size_trends.populate_data_column_heading.assert_not_called()
+
+    report_size_trends.get_current_row.assert_called_once()
+
+    if not current_row["populated"]:
+        report_size_trends.create_row.assert_called_once_with(row_number=current_row["number"])
+    else:
+        report_size_trends.create_row.assert_not_called()
+
+    report_size_trends.write_memory_usage_data.assert_called_once_with(
+        column_letter=data_column_letter["letter"],
+        row_number=current_row["number"],
+        memory_usage=size_report[report_keys.current][report_keys.absolute]
+    )
 
 
 def test_populate_shared_data_headings():
@@ -252,46 +274,50 @@ def test_populate_shared_data_headings():
     Service.execute.assert_called_once()
 
 
-def test_get_data_column_letters():
+@pytest.mark.parametrize("size_name, expected_populated, expected_letter",
+                         [("bar size name", False, "C"),
+                          ("foo size name", True, "B")])
+def test_get_data_column_letter(size_name, expected_populated, expected_letter):
     fqbn = "test_fqbn"
+    sketch_name = "foo/SketchName"
+    heading_row_data_size_name = "foo size name"
 
     report_size_trends = get_reportsizetrends_object(fqbn=fqbn)
-    heading_row_data = {"values": [["foo", "bar"]]}
-    column_letters = report_size_trends.get_data_column_letters(heading_row_data)
-    assert column_letters["populated"] is False
-    assert "C" == column_letters["flash"]
-    assert "D" == column_letters["ram"]
-
-    heading_row_data = {"values": [["foo", report_size_trends.fqbn + report_size_trends.flash_heading_indicator]]}
-    column_letters = report_size_trends.get_data_column_letters(heading_row_data)
-    assert column_letters["populated"] is True
-    assert "B" == column_letters["flash"]
-    assert "C" == column_letters["ram"]
+    heading_row_data = {"values": [["foo",
+                                    report_size_trends.fqbn + "\n"
+                                    + sketch_name + "\n"
+                                    + heading_row_data_size_name]]}
+    column_letter = report_size_trends.get_data_column_letter(heading_row_data=heading_row_data,
+                                                              sketch_name=sketch_name,
+                                                              size_name=size_name)
+    assert column_letter["populated"] is expected_populated
+    assert expected_letter == column_letter["letter"]
 
 
-def test_populate_data_column_headings():
+def test_populate_data_column_heading():
     spreadsheet_id = "test_spreadsheet_id"
     sheet_name = "test_sheet_name"
     fqbn = "test_fqbn"
     report_size_trends = get_reportsizetrends_object(spreadsheet_id=spreadsheet_id, sheet_name=sheet_name, fqbn=fqbn)
 
-    flash_column_letter = "A"
-    ram_column_letter = "B"
+    data_column_letter = "A"
+    sketch_name = "foo/SketchName"
+    size_name = "foo size name"
 
     Service.update = unittest.mock.MagicMock(return_value=Service())
     Service.execute = unittest.mock.MagicMock()
     report_size_trends.service = Service()
 
-    report_size_trends.populate_data_column_headings(flash_column_letter=flash_column_letter,
-                                                     ram_column_letter=ram_column_letter)
-    spreadsheet_range = (sheet_name + "!" + flash_column_letter + report_size_trends.heading_row_number + ":"
-                         + ram_column_letter + report_size_trends.heading_row_number)
-    board_data_headings_data = ("[[\"" + fqbn + report_size_trends.flash_heading_indicator + "\",\"" + fqbn
-                                + report_size_trends.ram_heading_indicator + "\"]]")
+    report_size_trends.populate_data_column_heading(data_column_letter=data_column_letter,
+                                                    sketch_name=sketch_name,
+                                                    size_name=size_name)
+    spreadsheet_range = (sheet_name + "!" + data_column_letter + report_size_trends.heading_row_number + ":"
+                         + data_column_letter + report_size_trends.heading_row_number)
+    data_heading_data = ("[[\"" + report_size_trends.fqbn + "\\n" + sketch_name + "\\n" + size_name + "\"]]")
     Service.update.assert_called_once_with(spreadsheetId=spreadsheet_id,
                                            range=spreadsheet_range,
                                            valueInputOption="RAW",
-                                           body={"values": json.loads(board_data_headings_data)})
+                                           body={"values": json.loads(data_heading_data)})
     Service.execute.assert_called_once()
 
 
@@ -318,26 +344,21 @@ def test_get_current_row():
 def test_create_row():
     spreadsheet_id = "test_spreadsheet_id"
     sheet_name = "test_sheet_name"
-    sketch_path = "foo/SketchName"
-    sketches_data = [{reportsizetrends.ReportSizeTrends.ReportKeys.sketch: sketch_path}]
-    fqbn = "test_fqbn"
     commit_url = "test_commit_url"
     report_size_trends = get_reportsizetrends_object(spreadsheet_id=spreadsheet_id,
                                                      sheet_name=sheet_name,
-                                                     sketches_data=sketches_data,
-                                                     commit_url=commit_url,
-                                                     fqbn=fqbn)
+                                                     commit_url=commit_url)
     row_number = 42
 
     Service.update = unittest.mock.MagicMock(return_value=Service())
     Service.execute = unittest.mock.MagicMock()
     report_size_trends.service = Service()
 
-    report_size_trends.create_row(row_number=row_number, sketch_path=sketch_path)
+    report_size_trends.create_row(row_number=row_number)
     spreadsheet_range = (sheet_name + "!" + report_size_trends.shared_data_first_column_letter + str(row_number)
                          + ":" + report_size_trends.shared_data_last_column_letter + str(row_number))
-    shared_data_columns_data = ("[[\"" + '{:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now()) + "\",\""
-                                + sketch_path + "\",\"=HYPERLINK(\\\"" + report_size_trends.commit_url
+    shared_data_columns_data = ("[[\"" + '{:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now())
+                                + "\",\"=HYPERLINK(\\\"" + commit_url
                                 + "\\\",T(\\\"" + report_size_trends.commit_hash + "\\\"))\"]]")
     Service.update.assert_called_once_with(spreadsheetId=spreadsheet_id,
                                            range=spreadsheet_range,
@@ -350,22 +371,20 @@ def test_write_memory_usage_data():
     spreadsheet_id = "test_spreadsheet_id"
     sheet_name = "test_sheet_name"
     report_size_trends = get_reportsizetrends_object(spreadsheet_id=spreadsheet_id, sheet_name=sheet_name)
-    flash_column_letter = "A"
-    ram_column_letter = "B"
+    column_letter = "A"
     row_number = 42
-    flash = 11
-    ram = 12
+    memory_usage = 11
 
     Service.update = unittest.mock.MagicMock(return_value=Service())
     Service.execute = unittest.mock.MagicMock()
     report_size_trends.service = Service()
 
-    report_size_trends.write_memory_usage_data(flash_column_letter=flash_column_letter,
-                                               ram_column_letter=ram_column_letter,
-                                               row_number=row_number, flash=flash, ram=ram)
-    spreadsheet_range = (sheet_name + "!" + flash_column_letter + str(row_number) + ":"
-                         + ram_column_letter + str(row_number))
-    size_data = "[[" + str(flash) + "," + str(ram) + "]]"
+    report_size_trends.write_memory_usage_data(column_letter=column_letter,
+                                               row_number=row_number,
+                                               memory_usage=memory_usage)
+    spreadsheet_range = (sheet_name + "!" + column_letter + str(row_number) + ":"
+                         + column_letter + str(row_number))
+    size_data = "[[" + str(memory_usage) + "]]"
     Service.update.assert_called_once_with(spreadsheetId=spreadsheet_id,
                                            range=spreadsheet_range,
                                            valueInputOption="RAW",
