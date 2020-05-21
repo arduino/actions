@@ -104,8 +104,12 @@ class ReportSizeTrends:
             print("Initializing empty sheet")
             self.populate_shared_data_headings()
 
+        print("::debug::Reporting for board:", self.fqbn)
+
         for sketch_report in self.sketch_reports:
+            print("::debug::Reporting for sketch:", sketch_report[self.ReportKeys.name])
             for size_report in sketch_report[self.ReportKeys.sizes]:
+                print("::debug::Reporting for memory type:", size_report[self.ReportKeys.name])
                 # Update the heading row data so it will reflect the changes made in each iteration
                 heading_row_data = self.get_heading_row_data()
 
@@ -129,6 +133,8 @@ class ReportSizeTrends:
 
         if not data_column_letter["populated"]:
             # Columns don't exist for this board, sketch, memory type yet, so create them
+
+            print("::debug::Report column doesn't already exist, adding it")
             self.populate_data_column_heading(data_column_letter=data_column_letter["letter"],
                                               sketch_name=sketch_report[self.ReportKeys.name],
                                               size_name=size_report[self.ReportKeys.name])
@@ -256,6 +262,8 @@ class ReportSizeTrends:
         row_number -- number of the row to write to
         memory_usage -- memory usage
         """
+        print("::debug::Writing memory usage value:", memory_usage)
+
         spreadsheet_range = (self.sheet_name + "!" + column_letter + str(row_number) + ":"
                              + column_letter + str(row_number))
         size_data = "[[" + str(memory_usage) + "]]"
