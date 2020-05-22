@@ -1,6 +1,6 @@
 import distutils.dir_util
 import json
-import os
+import pathlib
 import tempfile
 import unittest.mock
 import urllib
@@ -10,6 +10,9 @@ import pytest
 import reportsizedeltas
 
 reportsizedeltas.set_verbosity(enable_verbosity=False)
+
+test_data_path = pathlib.Path(__file__).resolve().parent.joinpath("data")
+report_keys = reportsizedeltas.ReportSizeDeltas.ReportKeys()
 
 
 def get_reportsizedeltas_object(repository_name="FooOwner/BarRepository",
@@ -35,6 +38,7 @@ def test_set_verbosity():
 def test_report_size_deltas(mocker):
     artifact_download_url = "test_artifact_download_url"
     artifact_folder_object = "test_artifact_folder_object"
+    sketches_reports = unittest.mock.sentinel.sketches_reports
     report = "foo report"
     json_data = [{"number": 1, "locked": True, "head": {"sha": "foo123", "ref": "asdf"}, "user": {"login": "1234"}},
                  {"number": 2, "locked": False, "head": {"sha": "foo123", "ref": "asdf"}, "user": {"login": "1234"}}]
@@ -51,6 +55,7 @@ def test_report_size_deltas(mocker):
                  autospec=True,
                  return_value=artifact_download_url)
     mocker.patch("reportsizedeltas.ReportSizeDeltas.get_artifact", autospec=True, return_value=artifact_folder_object)
+    mocker.patch("reportsizedeltas.ReportSizeDeltas.get_sketches_reports", autospec=True, return_value=sketches_reports)
     mocker.patch("reportsizedeltas.ReportSizeDeltas.generate_report", autospec=True, return_value=report)
     mocker.patch("reportsizedeltas.ReportSizeDeltas.comment_report", autospec=True)
 
@@ -80,15 +85,24 @@ def test_report_size_deltas(mocker):
 
     report_size_deltas.comment_report.assert_not_called()
 
-    # Test making reports
+    # Test handling of old sketches report artifacts
     reportsizedeltas.ReportSizeDeltas.get_artifact_download_url_for_sha.return_value = artifact_download_url
-    reportsizedeltas.ReportSizeDeltas.generate_report.return_value = report
+    reportsizedeltas.ReportSizeDeltas.get_sketches_reports.return_value = None
+    mocker.resetall()
+
+    report_size_deltas.report_size_deltas()
+
+    report_size_deltas.comment_report.assert_not_called()
+
+    # Test making reports
+    reportsizedeltas.ReportSizeDeltas.get_sketches_reports.return_value = sketches_reports
     mocker.resetall()
 
     report_size_deltas.report_size_deltas()
 
     report_exists_calls = []
     get_artifact_download_url_for_sha_calls = []
+    get_sketches_reports_calls = []
     generate_report_calls = []
     comment_report_calls = []
     for pr_data in json_data:
@@ -101,9 +115,12 @@ def test_report_size_deltas(mocker):
                                pr_head_ref=pr_data["head"]["ref"],
                                pr_head_sha=pr_data["head"]["sha"])
         )
+        get_sketches_reports_calls.append(
+            unittest.mock.call(report_size_deltas, artifact_folder_object=artifact_folder_object)
+        )
         generate_report_calls.append(
             unittest.mock.call(report_size_deltas,
-                               artifact_folder_object=artifact_folder_object,
+                               sketches_reports=sketches_reports,
                                pr_head_sha=pr_data["head"]["sha"],
                                pr_number=pr_data["number"])
         )
@@ -113,6 +130,7 @@ def test_report_size_deltas(mocker):
     report_size_deltas.report_exists.assert_has_calls(calls=report_exists_calls)
     report_size_deltas.get_artifact_download_url_for_sha.assert_has_calls(calls=get_artifact_download_url_for_sha_calls)
     report_size_deltas.get_artifact.assert_called_with(report_size_deltas, artifact_download_url=artifact_download_url)
+    report_size_deltas.get_sketches_reports.assert_has_calls(calls=get_sketches_reports_calls)
     report_size_deltas.generate_report.assert_has_calls(calls=generate_report_calls)
     report_size_deltas.comment_report.assert_has_calls(calls=comment_report_calls)
 
@@ -220,34 +238,252 @@ def test_get_artifact_download_url_for_run():
 # # TODO
 # def test_get_artifact():
 
-def test_generate_report():
-    pr_head_sha = "asdf123"
-    pr_number = 42
-    repository_name = "test_user/test_repo"
-
-    report_size_deltas = get_reportsizedeltas_object(repository_name=repository_name)
+@pytest.mark.parametrize(
+    "sketches_reports_path, expected_sketches_reports",
+    [
+        (test_data_path.joinpath("size-deltas-reports-old"),
+         []
+         ),
+        (
+            test_data_path.joinpath("size-deltas-reports-new"),
+            [
+                {
+                    report_keys.commit_hash: "d8fd302",
+                    report_keys.commit_url: "https://example.com/foo",
+                    report_keys.fqbn: "arduino:avr:leonardo",
+                    report_keys.sizes: [
+                        {
+                            report_keys.delta: {
+                                report_keys.absolute: {
+                                    report_keys.maximum: -12,
+                                    report_keys.minimum: -12
+                                }
+                            },
+                            report_keys.name: "flash"
+                        },
+                        {
+                            report_keys.delta: {
+                                report_keys.absolute: {
+                                    report_keys.maximum: 0,
+                                    report_keys.minimum: 0
+                                }
+                            },
+                            report_keys.name: "RAM for global variables"
+                        }
+                    ],
+                    report_keys.sketch: [
+                        {
+                            report_keys.compilation_success: True,
+                            report_keys.name: "examples/Bar",
+                            report_keys.sizes: [
+                                {
+                                    report_keys.current: {
+                                        report_keys.absolute: 3494
+                                    },
+                                    report_keys.delta: {
+                                        report_keys.absolute: "N/A"
+                                    },
+                                    report_keys.name: "flash",
+                                    "previous": {
+                                        report_keys.absolute: "N/A"
+                                    }
+                                },
+                                {
+                                    report_keys.current: {
+                                        report_keys.absolute: 153
+                                    },
+                                    report_keys.delta: {
+                                        report_keys.absolute: "N/A"
+                                    },
+                                    report_keys.name: "RAM for global variables",
+                                    "previous": {
+                                        report_keys.absolute: "N/A"
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            report_keys.compilation_success: True,
+                            report_keys.name: "examples/Foo",
+                            report_keys.sizes: [
+                                {
+                                    report_keys.current: {
+                                        report_keys.absolute: 3462
+                                    },
+                                    report_keys.delta: {
+                                        report_keys.absolute: -12
+                                    },
+                                    report_keys.name: "flash",
+                                    "previous": {
+                                        report_keys.absolute: 3474
+                                    }
+                                },
+                                {
+                                    report_keys.current: {
+                                        report_keys.absolute: 149
+                                    },
+                                    report_keys.delta: {
+                                        report_keys.absolute: 0
+                                    },
+                                    report_keys.name: "RAM for global variables",
+                                    "previous": {
+                                        report_keys.absolute: 149
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    report_keys.commit_hash: "d8fd302",
+                    report_keys.commit_url: "https://example.com/foo",
+                    report_keys.fqbn: "arduino:avr:uno",
+                    report_keys.sizes: [
+                        {
+                            report_keys.delta: {
+                                report_keys.absolute: {
+                                    report_keys.maximum: -994,
+                                    report_keys.minimum: -994
+                                }
+                            },
+                            report_keys.name: "flash"
+                        },
+                        {
+                            report_keys.delta: {
+                                report_keys.absolute: {
+                                    report_keys.maximum: -175,
+                                    report_keys.minimum: -175
+                                }
+                            },
+                            report_keys.name: "RAM for global variables"
+                        }
+                    ],
+                    report_keys.sketch: [
+                        {
+                            report_keys.compilation_success: True,
+                            report_keys.name: "examples/Bar",
+                            report_keys.sizes: [
+                                {
+                                    report_keys.current: {
+                                        report_keys.absolute: 1460
+                                    },
+                                    report_keys.delta: {
+                                        report_keys.absolute: "N/A"
+                                    },
+                                    report_keys.name: "flash",
+                                    "previous": {
+                                        report_keys.absolute: "N/A"
+                                    }
+                                },
+                                {
+                                    report_keys.current: {
+                                        report_keys.absolute: 190
+                                    },
+                                    report_keys.delta: {
+                                        report_keys.absolute: "N/A"
+                                    },
+                                    report_keys.name: "RAM for global variables",
+                                    "previous": {
+                                        report_keys.absolute: "N/A"
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            report_keys.compilation_success: True,
+                            report_keys.name: "examples/Foo",
+                            report_keys.sizes: [
+                                {
+                                    report_keys.current: {
+                                        report_keys.absolute: 444
+                                    },
+                                    report_keys.delta: {
+                                        report_keys.absolute: -994
+                                    },
+                                    report_keys.name: "flash",
+                                    "previous": {
+                                        report_keys.absolute: 1438
+                                    }
+                                },
+                                {
+                                    report_keys.current: {
+                                        report_keys.absolute: 9
+                                    },
+                                    report_keys.delta: {
+                                        report_keys.absolute: -175
+                                    },
+                                    report_keys.name: "RAM for global variables",
+                                    "previous": {
+                                        report_keys.absolute: 184
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        )
+    ]
+)
+def test_get_sketches_reports(sketches_reports_path, expected_sketches_reports):
+    report_size_deltas = get_reportsizedeltas_object()
 
     artifact_folder_object = tempfile.TemporaryDirectory(prefix="test_reportsizedeltas-")
     try:
-        distutils.dir_util.copy_tree(src=os.path.dirname(os.path.realpath(__file__)) + "/data/size-deltas-reports",
+        distutils.dir_util.copy_tree(src=str(sketches_reports_path),
                                      dst=artifact_folder_object.name)
     except Exception:
         artifact_folder_object.cleanup()
         raise
+    sketches_reports = report_size_deltas.get_sketches_reports(artifact_folder_object=artifact_folder_object)
 
-    report = report_size_deltas.generate_report(artifact_folder_object=artifact_folder_object,
-                                                pr_head_sha=pr_head_sha, pr_number=pr_number)
-    report_markdown = (
-        report_size_deltas.report_key_beginning + pr_head_sha
-        + "](https://github.com/" + repository_name + "/pull/" + str(pr_number) + "/commits/" + pr_head_sha
-        + ")**\n\n"
-          "FQBN | Flash Usage | RAM For Global Variables\n"
-          "---|---|---\n"
-          "adafruit:samd:adafruit_feather_m0 | 0 | N/A\n"
-          "arduino:samd:mkrgsm1400 | N/A | N/A\n"
-          "arduino:samd:mkrnb1500 | :green_heart: -24 | 0\n"
-          "esp8266:esp8266:huzzah | :small_red_triangle: +32 | :small_red_triangle: +16")
-    assert report_markdown == report
+    assert sketches_reports == expected_sketches_reports
+
+
+def test_generate_report():
+    sketches_report_path = test_data_path.joinpath("size-deltas-reports-new")
+    pr_head_sha = "asdf123"
+    pr_number = 42
+    expected_deltas_report = (
+        "**Memory usage change @[asdf123](https://github.com/FooOwner/BarRepository/pull/42/commits/asdf123)**\n\n"
+        "FQBN|flash|RAM for global variables\n"
+        "-|-|-\n"
+        "arduino:avr:leonardo|:green_heart: -12 - -12|0 - 0\n"
+        "arduino:avr:uno|:green_heart: -994 - -994|:green_heart: -175 - -175\n\n"
+        "<details>\n"
+        "<summary>Click for full report table</summary>\n\n"
+        "FQBN|examples/Bar<br>flash|examples/Bar<br>RAM for global variables|examples/Foo<br>flash|examples/Foo<br>RAM "
+        "for global variables\n"
+        "-|-|-|-|-\n"
+        "arduino:avr:leonardo|N/A|N/A|-12|0\n"
+        "arduino:avr:uno|N/A|N/A|-994|-175\n\n"
+        "</details>\n\n"
+        "<details>\n"
+        "<summary>Click for full report CSV</summary>\n\n"
+        "```\n"
+        "FQBN,examples/Bar<br>flash,examples/Bar<br>RAM for global variables,examples/Foo<br>flash,examples/Foo<br>RAM "
+        "for global variables\n"
+        "arduino:avr:leonardo,N/A,N/A,-12,0\n"
+        "arduino:avr:uno,N/A,N/A,-994,-175\n"
+        "```\n"
+        "</details>"
+    )
+
+    report_size_deltas = get_reportsizedeltas_object()
+
+    artifact_folder_object = tempfile.TemporaryDirectory(prefix="test_reportsizedeltas-")
+    try:
+        distutils.dir_util.copy_tree(src=str(sketches_report_path),
+                                     dst=artifact_folder_object.name)
+    except Exception:
+        artifact_folder_object.cleanup()
+        raise
+    sketches_reports = report_size_deltas.get_sketches_reports(artifact_folder_object=artifact_folder_object)
+
+    report = report_size_deltas.generate_report(sketches_reports=sketches_reports,
+                                                pr_head_sha=pr_head_sha,
+                                                pr_number=pr_number)
+    assert report == expected_deltas_report
 
 
 def test_comment_report():
@@ -410,8 +646,24 @@ def test_get_page_count():
     assert page_count == reportsizedeltas.get_page_count(link_header=link_header)
 
 
-def test_generate_value_cell():
-    assert " | :small_red_triangle: +42" == reportsizedeltas.generate_value_cell(42)
-    assert " | 0" == reportsizedeltas.generate_value_cell(0)
-    assert " | :green_heart: -42" == reportsizedeltas.generate_value_cell(-42)
-    assert " | N/A" == reportsizedeltas.generate_value_cell("N/A")
+@pytest.mark.parametrize("minimum, maximum, expected_value",
+                         [("N/A", "N/A", "N/A"),
+                          (-1, 0, ":green_heart: -1 - 0"),
+                          (0, 0, "0 - 0"),
+                          (0, 1, ":small_red_triangle: 0 - +1"),
+                          (1, 1, ":small_red_triangle: +1 - +1"),
+                          (-1, 1, ":grey_question: -1 - +1")])
+def test_get_summary_value(minimum, maximum, expected_value):
+    assert reportsizedeltas.get_summary_value(minimum=minimum, maximum=maximum) == expected_value
+
+
+def test_generate_markdown_table():
+    assert reportsizedeltas.generate_markdown_table(
+        row_list=[["FQBN", "Flash", "RAM"], ["foo:bar:baz", 42, 11]]
+    ) == "FQBN|Flash|RAM\n-|-|-\nfoo:bar:baz|42|11\n"
+
+
+def test_generate_csv_table():
+    assert reportsizedeltas.generate_csv_table(row_list=[["FQBN", "Flash", "RAM"], ["foo:bar:baz", 42, 11]]) == (
+        "FQBN,Flash,RAM\nfoo:bar:baz,42,11\n"
+    )

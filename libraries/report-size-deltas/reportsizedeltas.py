@@ -1,3 +1,5 @@
+import csv
+import io
 import json
 import logging
 import os
@@ -53,13 +55,29 @@ class ReportSizeDeltas:
     """
     report_key_beginning = "**Memory usage change @["
 
+    class ReportKeys:
+        """Key names used in the sketches report dictionary"""
+        fqbn = "fqbn"
+        commit_hash = "commit_hash"
+        commit_url = "commit_url"
+        sizes = "sizes"
+        name = "name"
+        absolute = "absolute"
+        current = "current"
+        previous = "previous"
+        delta = "delta"
+        minimum = "minimum"
+        maximum = "maximum"
+        sketch = "sketch"
+        compilation_success = "compilation_success"
+
     def __init__(self, repository_name, artifact_name, token):
         self.repository_name = repository_name
         self.artifact_name = artifact_name
         self.token = token
 
     def report_size_deltas(self):
-        """Scan the repository's pull requests to see if any need reports and return a list of the reports submitted"""
+        """Scan the repository's pull requests and comment memory usage change reports where appropriate."""
         # Get the repository's pull requests
         logger.debug("Getting PRs for " + self.repository_name)
         page_number = 1
@@ -96,12 +114,14 @@ class ReportSizeDeltas:
 
                 artifact_folder_object = self.get_artifact(artifact_download_url=artifact_download_url)
 
-                report = self.generate_report(artifact_folder_object=artifact_folder_object,
-                                              pr_head_sha=pr_head_sha,
-                                              pr_number=pr_number)
+                sketches_reports = self.get_sketches_reports(artifact_folder_object=artifact_folder_object)
 
+                if sketches_reports:
+                    report = self.generate_report(sketches_reports=sketches_reports,
+                                                  pr_head_sha=pr_head_sha,
+                                                  pr_number=pr_number)
 
-                self.comment_report(pr_number=pr_number, report_markdown=report)
+                    self.comment_report(pr_number=pr_number, report_markdown=report)
 
             page_number += 1
             page_count = api_data["page_count"]
@@ -217,28 +237,107 @@ class ReportSizeDeltas:
             artifact_folder_object.cleanup()
             raise
 
-    def generate_report(self, artifact_folder_object, pr_head_sha, pr_number):
-        """Parse the artifact files and returns a dictionary:
-        markdown -- Markdown formatted report text
-        data -- list containing all the report data
+    def get_sketches_reports(self, artifact_folder_object):
+        """Parse the artifact files and return a list containing the data.
 
         Keyword arguments:
         artifact_folder_object -- object containing the data about the temporary folder that stores the markdown files
         """
         with artifact_folder_object as artifact_folder:
-            report_markdown = (self.report_key_beginning + pr_head_sha + "]"
-                               + "(https://github.com/" + self.repository_name + "/pull/" + str(pr_number)
-                               + "/commits/" + pr_head_sha + ")**\n\n")
-            report_markdown = report_markdown + "FQBN | Flash Usage | RAM For Global Variables\n---|---|---"
-            reports_data = []
+            sketches_reports = []
             for report_filename in sorted(os.listdir(path=artifact_folder)):
+                # Combine sketches reports into an array
                 with open(file=artifact_folder + "/" + report_filename) as report_file:
                     report_data = json.load(report_file)
-                    reports_data = reports_data + [report_data]
-                    report_markdown = (report_markdown + "\n"
-                                       + report_data["fqbn"]
-                                       + generate_value_cell(report_data["flash_delta"])
-                                       + generate_value_cell(report_data["ram_delta"]))
+                    if type(report_data[self.ReportKeys.sketch]) is not list:
+                        # Sketches reports use the old format, skip
+                        print("Old format sketches report found, skipping")
+                        continue
+
+                    if self.ReportKeys.sizes in report_data:
+                        # The report contains deltas data
+                        sketches_reports.append(report_data)
+
+        if not sketches_reports:
+            print("No size deltas data found in workflow artifact for this PR. The compile-examples action's "
+                  "enable-size-deltas-report input must be set to true to produce size deltas data.")
+
+        return sketches_reports
+
+    def generate_report(self, sketches_reports, pr_head_sha, pr_number):
+        """Return the Markdown for the deltas report comment.
+
+        Keyword arguments:
+        sketches_reports -- list of sketches_reports containing the data to generate the deltas report from
+        """
+        fqbn_column_heading = "FQBN"
+
+        # Generate summary report data
+        summary_report_data = [[fqbn_column_heading]]
+        for row_number, fqbn_data in enumerate(iterable=sketches_reports, start=1):
+            # Add a row to the report
+            row = ["" for _ in range(len(summary_report_data[0]))]
+            row[0] = fqbn_data[self.ReportKeys.fqbn]
+            summary_report_data.append(row)
+
+            # Populate the row with data
+            for size_data in fqbn_data[self.ReportKeys.sizes]:
+                # Determine column number for this memory type
+                column_number = get_report_column_number(report=summary_report_data,
+                                                         column_heading=size_data[self.ReportKeys.name])
+
+                # Add the memory data to the cell
+                summary_report_data[row_number][column_number] = (
+                    get_summary_value(
+                        minimum=size_data[self.ReportKeys.delta][self.ReportKeys.absolute][self.ReportKeys.minimum],
+                        maximum=size_data[self.ReportKeys.delta][self.ReportKeys.absolute][self.ReportKeys.maximum])
+                )
+
+        # Generate detailed report data
+        full_report_data = [[fqbn_column_heading]]
+        for row_number, fqbn_data in enumerate(iterable=sketches_reports, start=1):
+            # Add a row to the report
+            row = ["" for _ in range(len(full_report_data[0]))]
+            row[0] = fqbn_data[self.ReportKeys.fqbn]
+            full_report_data.append(row)
+
+            # Populate the row with data
+            for sketch in fqbn_data[self.ReportKeys.sketch]:
+                for size_data in sketch[self.ReportKeys.sizes]:
+                    # Determine column number for this memory type
+                    column_number = get_report_column_number(
+                        report=full_report_data,
+                        column_heading=sketch[self.ReportKeys.name] + "<br>" + size_data[self.ReportKeys.name])
+
+                    # Add the memory data to the cell
+                    full_report_data[row_number][column_number] = (
+                        size_data[self.ReportKeys.delta][self.ReportKeys.absolute]
+                    )
+
+        # Add comment heading
+        report_markdown = (self.report_key_beginning + pr_head_sha + "]"
+                           + "(https://github.com/" + self.repository_name + "/pull/" + str(pr_number)
+                           + "/commits/" + pr_head_sha + ")**\n\n")
+
+        # Add summary table
+        report_markdown = report_markdown + generate_markdown_table(row_list=summary_report_data) + "\n"
+
+        # Add full table
+        report_markdown = (report_markdown
+                           + "<details>\n"
+                             "<summary>Click for full report table</summary>\n\n")
+        report_markdown = (report_markdown
+                           + generate_markdown_table(row_list=full_report_data)
+                           + "\n</details>\n\n")
+
+        # Add full CSV
+        report_markdown = (report_markdown
+                           + "<details>\n"
+                             "<summary>Click for full report CSV</summary>\n\n"
+                             "```\n")
+        report_markdown = (report_markdown
+                           + generate_csv_table(row_list=full_report_data)
+                           + "```\n</details>")
 
         logger.debug("Report:\n" + report_markdown)
         return report_markdown
@@ -449,26 +548,94 @@ def get_page_count(link_header):
     return page_count
 
 
-def generate_value_cell(value):
-    """Return the Markdown formatted text for a memory change data cell in the report table
+def get_report_column_number(report, column_heading):
+    """Return the column number of the given heading.
 
     Keyword arguments:
-    value -- amount of memory change
+    column_heading -- the text of the column heading. If it doesn't exist, a column will be created with this heading.
+    """
+    try:
+        column_number = report[0].index(column_heading, 1)
+    except ValueError:
+        # There is no existing column, so create one
+        column_number = len(report[0])
+        # Add the heading
+        report[0].append(column_heading)
+        # Expand the size of the last (current) row to match the new number of columns
+        report[len(report) - 1].append("")
+
+    return column_number
+
+
+def get_summary_value(minimum, maximum):
+    """Return the Markdown formatted text for a memory change data cell in the report table.
+
+    Keyword arguments:
+    minimum -- minimum amount of change for this memory type
+    minimum -- maximum amount of change for this memory type
     """
     size_decrease_emoji = ":green_heart:"
+    size_ambiguous_emoji = ":grey_question:"
     size_increase_emoji = ":small_red_triangle:"
+    not_applicable_indicator = "N/A"
 
-    cell = " | "
-    if value == "N/A":
-        pass
-    elif value > 0:
-        cell = cell + size_increase_emoji + " +"
-    elif value < 0:
-        cell = cell + size_decrease_emoji + " "
+    value = None
+    if minimum == not_applicable_indicator:
+        value = not_applicable_indicator
+        emoji = None
+    elif minimum < 0 and maximum <= 0:
+        emoji = size_decrease_emoji
+    elif minimum == 0 and maximum == 0:
+        emoji = None
+    elif minimum >= 0 and maximum > 0:
+        emoji = size_increase_emoji
     else:
-        pass
+        emoji = size_ambiguous_emoji
 
-    return cell + str(value)
+    if value is None:
+        # Prepend + to positive values to improve readability
+        if minimum > 0:
+            minimum = "+" + str(minimum)
+        if maximum > 0:
+            maximum = "+" + str(maximum)
+
+        value = str(minimum) + " - " + str(maximum)
+
+    if emoji is not None:
+        value = emoji + " " + value
+
+    return value
+
+
+def generate_markdown_table(row_list):
+    """Return the data formatted as a Markdown table
+
+    Keyword arguments:
+    row_list -- list containing the data
+    """
+    # Generate heading row
+    markdown_table = "|".join([str(cell) for cell in row_list[0]]) + "\n"
+    # Add divider row
+    markdown_table = markdown_table + "|".join(["-" for _ in row_list[0]]) + "\n"
+    # Add data rows
+    for row in row_list[1:]:
+        markdown_table = markdown_table + "|".join([str(cell) for cell in row]) + "\n"
+
+    return markdown_table
+
+
+def generate_csv_table(row_list):
+    """Return a string containing the supplied data formatted as CSV.
+
+    Keyword arguments:
+    row_list -- list containing the data
+    """
+    csv_string = io.StringIO()
+    csv_writer = csv.writer(csv_string, lineterminator="\n")
+    for row in row_list:
+        csv_writer.writerow(row)
+
+    return csv_string.getvalue()
 
 
 # Only execute the following code if the script is run directly, not imported
