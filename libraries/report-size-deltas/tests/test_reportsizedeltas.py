@@ -12,6 +12,19 @@ import reportsizedeltas
 reportsizedeltas.set_verbosity(enable_verbosity=False)
 
 
+def get_reportsizedeltas_object(repository_name="FooOwner/BarRepository",
+                                artifact_name="foo-artifact-name",
+                                token="foo token"):
+    """Return a reportsizedeltas.ReportSizeDeltas object to use in tests.
+
+    Keyword arguments:
+    repository_name -- repository owner and name e.g., octocat/Hello-World
+    artifact_name -- name of the workflow artifact that contains the memory usage data
+    token -- GitHub access token
+    """
+    return reportsizedeltas.ReportSizeDeltas(repository_name=repository_name, artifact_name=artifact_name, token=token)
+
+
 def test_set_verbosity():
     with pytest.raises(TypeError):
         reportsizedeltas.set_verbosity(enable_verbosity=2)
@@ -26,7 +39,7 @@ def test_report_size_deltas(mocker):
     json_data = [{"number": 1, "locked": True, "head": {"sha": "foo123", "ref": "asdf"}, "user": {"login": "1234"}},
                  {"number": 2, "locked": False, "head": {"sha": "foo123", "ref": "asdf"}, "user": {"login": "1234"}}]
 
-    report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name="foo/bar", artifact_name="foo", token="foo")
+    report_size_deltas = get_reportsizedeltas_object()
 
     mocker.patch("reportsizedeltas.ReportSizeDeltas.api_request",
                  autospec=True,
@@ -106,12 +119,10 @@ def test_report_size_deltas(mocker):
 
 def test_report_exists():
     repository_name = "test_name/test_repo"
-    artifact_name = "test_artifact_name"
     pr_number = 42
     pr_head_sha = "foo123"
 
-    report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name=repository_name,
-                                                           artifact_name=artifact_name, token="foo")
+    report_size_deltas = get_reportsizedeltas_object(repository_name=repository_name)
 
     json_data = [{"body": "foo123"}, {"body": report_size_deltas.report_key_beginning + pr_head_sha + "foo"}]
     report_size_deltas.api_request = unittest.mock.MagicMock(return_value={"json_data": json_data,
@@ -135,8 +146,7 @@ def test_get_artifact_download_url_for_sha():
     test_artifact_url = "test_artifact_url"
     run_id = "4567"
 
-    report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name=repository_name, artifact_name="foo",
-                                                           token="foo")
+    report_size_deltas = get_reportsizedeltas_object(repository_name=repository_name)
 
     json_data = {"workflow_runs": [{"head_sha": "foo123", "id": "1234"}, {"head_sha": pr_head_sha, "id": run_id}]}
     report_size_deltas.api_request = unittest.mock.MagicMock(return_value={"json_data": json_data,
@@ -180,8 +190,8 @@ def test_get_artifact_download_url_for_run():
     archive_download_url = "archive_download_url"
     run_id = "1234"
 
-    report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name=repository_name,
-                                                           artifact_name=artifact_name, token="foo")
+    report_size_deltas = get_reportsizedeltas_object(repository_name=repository_name,
+                                                     artifact_name=artifact_name)
 
     json_data = {"artifacts": [{"name": artifact_name, "archive_download_url": archive_download_url},
                                {"name": "bar123", "archive_download_url": "wrong_artifact_url"}]}
@@ -215,8 +225,7 @@ def test_generate_report():
     pr_number = 42
     repository_name = "test_user/test_repo"
 
-    report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name=repository_name, artifact_name="foo",
-                                                           token="foo")
+    report_size_deltas = get_reportsizedeltas_object(repository_name=repository_name)
 
     artifact_folder_object = tempfile.TemporaryDirectory(prefix="test_reportsizedeltas-")
     try:
@@ -246,8 +255,7 @@ def test_comment_report():
     report_markdown = "test_report_markdown"
     repository_name = "test_user/test_repo"
 
-    report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name=repository_name, artifact_name="foo",
-                                                           token="foo")
+    report_size_deltas = get_reportsizedeltas_object(repository_name=repository_name)
 
     report_size_deltas.http_request = unittest.mock.MagicMock()
 
@@ -271,7 +279,7 @@ def test_api_request():
     request_parameters = "test_parameters"
     page_number = 1
 
-    report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name="foo", artifact_name="foo", token="foo")
+    report_size_deltas = get_reportsizedeltas_object()
 
     report_size_deltas.get_json_response = unittest.mock.MagicMock(return_value=response_data)
 
@@ -287,7 +295,7 @@ def test_get_json_response():
     response = {"headers": {"Link": None}, "body": "[]"}
     url = "test_url"
 
-    report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name="foo", artifact_name="foo", token="foo")
+    report_size_deltas = get_reportsizedeltas_object()
 
     report_size_deltas.http_request = unittest.mock.MagicMock(return_value=response)
 
@@ -323,7 +331,7 @@ def test_http_request():
     url = "test_url"
     data = "test_data"
 
-    report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name="foo", artifact_name="foo", token="foo")
+    report_size_deltas = get_reportsizedeltas_object()
 
     report_size_deltas.raw_http_request = unittest.mock.MagicMock()
 
@@ -334,15 +342,13 @@ def test_http_request():
 
 def test_raw_http_request():
     user_name = "test_user"
-    repo_name = "test_repo"
     token = "test_token"
     url = "test_url"
     data = "test_data"
     request = "test_request"
 
-    report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name=user_name + "/" + repo_name,
-                                                           artifact_name="foo",
-                                                           token=token)
+    report_size_deltas = get_reportsizedeltas_object(repository_name=user_name + "/FooRepositoryName",
+                                                     token=token)
 
     urllib.request.Request = unittest.mock.MagicMock(return_value=request)
     report_size_deltas.handle_rate_limiting = unittest.mock.MagicMock()
@@ -371,7 +377,7 @@ def test_raw_http_request():
 
 
 def test_handle_rate_limiting():
-    report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name="foo", artifact_name="foo", token="foo")
+    report_size_deltas = get_reportsizedeltas_object()
 
     json_data = {"json_data": {"resources": {"core": {"remaining": 0, "reset": 1234, "limit": 42}}}}
     report_size_deltas.get_json_response = unittest.mock.MagicMock(return_value=json_data)
