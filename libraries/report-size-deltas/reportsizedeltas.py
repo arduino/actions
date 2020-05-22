@@ -449,7 +449,7 @@ class ReportSizeDeltas:
             retry_count += 1
             try:
                 # The rate limit API is not subject to rate limiting
-                if not url.startswith("https://api.github.com/rate_limit"):
+                if url.startswith("https://api.github.com") and not url.startswith("https://api.github.com/rate_limit"):
                     self.handle_rate_limiting()
                 return urllib.request.urlopen(url=request)
             except Exception as exception:
@@ -521,7 +521,7 @@ def determine_urlopen_retry(exception):
             return True
 
     # Other errors are probably permanent so give up
-    if str(exception_string).startswith("urllib.error.HTTPError: HTTP Error 401"):
+    if str(exception_string).startswith("HTTPError: HTTP Error 401"):
         # Give a nice hint as to the cause of this error
         logger.error(exception)
         logger.info("HTTP Error 401 may be caused by providing an incorrect GitHub personal access token.")

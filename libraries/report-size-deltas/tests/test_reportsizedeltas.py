@@ -1,9 +1,11 @@
 import distutils.dir_util
+import filecmp
 import json
 import pathlib
 import tempfile
 import unittest.mock
 import urllib
+import zipfile
 
 import pytest
 
@@ -26,6 +28,92 @@ def get_reportsizedeltas_object(repository_name="FooOwner/BarRepository",
     token -- GitHub access token
     """
     return reportsizedeltas.ReportSizeDeltas(repository_name=repository_name, artifact_name=artifact_name, token=token)
+
+
+def directories_are_same(left_directory, right_directory):
+    """Check recursively whether two directories contain the same files.
+    Based on https://stackoverflow.com/a/6681395
+
+    Keyword arguments:
+    left_directory -- one of the two directories to compare
+    right_directory -- the other directory to compare
+    """
+    filecmp.clear_cache()
+    directory_comparison = filecmp.dircmp(a=left_directory, b=right_directory)
+    if (
+        len(directory_comparison.left_only) > 0
+        or len(directory_comparison.right_only) > 0
+        or len(directory_comparison.funny_files) > 0
+    ):
+        return False
+
+    filecmp.clear_cache()
+    (_, mismatch, errors) = filecmp.cmpfiles(a=left_directory,
+                                             b=right_directory,
+                                             common=directory_comparison.common_files,
+                                             shallow=False)
+    if len(mismatch) > 0 or len(errors) > 0:
+        return False
+
+    for common_dir in directory_comparison.common_dirs:
+        if not directories_are_same(left_directory=left_directory.joinpath(common_dir),
+                                    right_directory=right_directory.joinpath(common_dir)):
+            return False
+
+    return True
+
+
+def test_directories_are_same(tmp_path):
+    left_directory = tmp_path.joinpath("left_directory")
+    right_directory = tmp_path.joinpath("right_directory")
+    left_directory.mkdir()
+    right_directory.mkdir()
+
+    # Different directory contents
+    left_directory.joinpath("foo.txt").write_text(data="foo")
+    assert directories_are_same(left_directory=left_directory, right_directory=right_directory) is False
+
+    # Different file contents
+    right_directory.joinpath("foo.txt").write_text(data="bar")
+    assert directories_are_same(left_directory=left_directory, right_directory=right_directory) is False
+
+    # Different file contents in subdirectory
+    right_directory.joinpath("foo.txt").write_text(data="foo")
+    left_directory.joinpath("bar").mkdir()
+    right_directory.joinpath("bar").mkdir()
+    left_directory.joinpath("bar", "bar.txt").write_text(data="foo")
+    right_directory.joinpath("bar", "bar.txt").write_text(data="bar")
+    assert directories_are_same(left_directory=left_directory, right_directory=right_directory) is False
+
+    right_directory.joinpath("bar", "bar.txt").write_text(data="foo")
+    assert directories_are_same(left_directory=left_directory, right_directory=right_directory) is True
+
+
+def test_main(monkeypatch, mocker):
+    repository_name = "FooOwner/BarRepository"
+    artifact_name = "foo-artifact-name"
+    token = "foo GitHub token"
+    monkeypatch.setenv("GITHUB_REPOSITORY", repository_name)
+    monkeypatch.setenv("INPUT_SIZE-DELTAS-REPORTS-ARTIFACT-NAME", artifact_name)
+    monkeypatch.setenv("INPUT_GITHUB-TOKEN", token)
+
+    class ReportSizeDeltas:
+        """Stub"""
+
+        def report_size_deltas(self):
+            """Stub"""
+            pass
+
+    mocker.patch("reportsizedeltas.set_verbosity", autospec=True)
+    mocker.patch("reportsizedeltas.ReportSizeDeltas", autospec=True, return_value=ReportSizeDeltas())
+    mocker.patch.object(ReportSizeDeltas, "report_size_deltas")
+    reportsizedeltas.main()
+
+    reportsizedeltas.set_verbosity.assert_called_once_with(enable_verbosity=False)
+    reportsizedeltas.ReportSizeDeltas.assert_called_once_with(repository_name=repository_name,
+                                                              artifact_name=artifact_name,
+                                                              token=token)
+    ReportSizeDeltas.report_size_deltas.assert_called_once()
 
 
 def test_set_verbosity():
@@ -235,8 +323,38 @@ def test_get_artifact_download_url_for_run():
     assert report_size_deltas.get_artifact_download_url_for_run(run_id=run_id) is None
 
 
-# # TODO
-# def test_get_artifact():
+@pytest.mark.parametrize("test_artifact_name, expected_success",
+                         [("correct-artifact-name", True),
+                          ("incorrect-artifact-name", False)])
+def test_get_artifact(tmp_path, test_artifact_name, expected_success):
+    artifact_source_path = test_data_path.joinpath("size-deltas-reports-new")
+
+    # Create temporary folder
+    artifact_destination_path = tmp_path.joinpath("url_path")
+    artifact_destination_path.mkdir()
+    real_artifact_name = "correct-artifact-name"
+    artifact_archive_destination_path = artifact_destination_path.joinpath(real_artifact_name + ".zip")
+
+    artifact_download_url = artifact_destination_path.joinpath(test_artifact_name + ".zip").as_uri()
+
+    # Create an archive file
+    with zipfile.ZipFile(file=artifact_archive_destination_path, mode="a") as zip_ref:
+        for artifact_file in artifact_source_path.rglob("*"):
+            zip_ref.write(filename=artifact_file, arcname=artifact_file.relative_to(artifact_source_path))
+
+    report_size_deltas = get_reportsizedeltas_object()
+
+    if expected_success:
+        artifact_folder_object = report_size_deltas.get_artifact(artifact_download_url=artifact_download_url)
+
+        with artifact_folder_object as artifact_folder:
+            # Verify that the artifact matches the source
+            assert directories_are_same(left_directory=artifact_source_path,
+                                        right_directory=artifact_folder)
+    else:
+        with pytest.raises(expected_exception=urllib.error.URLError):
+            report_size_deltas.get_artifact(artifact_download_url=artifact_download_url)
+
 
 @pytest.mark.parametrize(
     "sketches_reports_path, expected_sketches_reports",
@@ -528,11 +646,18 @@ def test_api_request():
 
 
 def test_get_json_response():
-    response = {"headers": {"Link": None}, "body": "[]"}
     url = "test_url"
 
     report_size_deltas = get_reportsizedeltas_object()
 
+    invalid_response = {"headers": {"Link": None}, "body": "foo"}
+    report_size_deltas.http_request = unittest.mock.MagicMock(return_value=invalid_response)
+
+    # HTTP response body is not JSON
+    with pytest.raises(expected_exception=json.decoder.JSONDecodeError):
+        report_size_deltas.get_json_response(url=url)
+
+    response = {"headers": {"Link": None}, "body": "[]"}
     report_size_deltas.http_request = unittest.mock.MagicMock(return_value=response)
 
     # Empty body
@@ -562,6 +687,12 @@ def test_get_json_response():
     assert response_data["additional_pages"]
     assert 4 == response_data["page_count"]
 
+    report_size_deltas.http_request = unittest.mock.MagicMock(side_effect=Exception())
+
+    # HTTP response body is not JSON
+    with pytest.raises(expected_exception=Exception):
+        report_size_deltas.get_json_response(url=url)
+
 
 def test_http_request():
     url = "test_url"
@@ -576,19 +707,20 @@ def test_http_request():
     report_size_deltas.raw_http_request.assert_called_once_with(url=url, data=data)
 
 
-def test_raw_http_request():
+def test_raw_http_request(mocker):
     user_name = "test_user"
     token = "test_token"
-    url = "test_url"
+    url = "https://api.github.com/repo/foo/bar"
     data = "test_data"
     request = "test_request"
+    urlopen_return = unittest.mock.sentinel.urlopen_return
 
     report_size_deltas = get_reportsizedeltas_object(repository_name=user_name + "/FooRepositoryName",
                                                      token=token)
 
-    urllib.request.Request = unittest.mock.MagicMock(return_value=request)
-    report_size_deltas.handle_rate_limiting = unittest.mock.MagicMock()
-    urllib.request.urlopen = unittest.mock.MagicMock()
+    mocker.patch.object(urllib.request, "Request", autospec=True, return_value=request)
+    mocker.patch("reportsizedeltas.ReportSizeDeltas.handle_rate_limiting", autospec=True)
+    mocker.patch.object(urllib.request, "urlopen", autospec=True, return_value=urlopen_return)
 
     report_size_deltas.raw_http_request(url=url, data=data)
 
@@ -596,20 +728,26 @@ def test_raw_http_request():
                                                    headers={"Authorization": "token " + token,
                                                             "User-Agent": user_name},
                                                    data=data)
-
-    # URL != https://api.github.com/rate_limit
+    # URL is subject to GitHub API rate limiting
     report_size_deltas.handle_rate_limiting.assert_called_once()
 
-    report_size_deltas.handle_rate_limiting.reset_mock()
-    urllib.request.urlopen.reset_mock()
-
+    # URL is not subject to GitHub API rate limiting
+    mocker.resetall()
     url = "https://api.github.com/rate_limit"
-    report_size_deltas.raw_http_request(url=url, data=data)
-
-    # URL == https://api.github.com/rate_limit
+    assert report_size_deltas.raw_http_request(url=url, data=data) == urlopen_return
     report_size_deltas.handle_rate_limiting.assert_not_called()
-
     urllib.request.urlopen.assert_called_once_with(url=request)
+
+    # urllib.request.urlopen() has non-recoverable exception
+    urllib.request.urlopen.side_effect = Exception()
+    mocker.patch("reportsizedeltas.determine_urlopen_retry", autospec=True, return_value=False)
+    with pytest.raises(expected_exception=Exception):
+        report_size_deltas.raw_http_request(url=url, data=data)
+
+    # urllib.request.urlopen() has potentially recoverable exceptions, but exceeds retry count
+    reportsizedeltas.determine_urlopen_retry.return_value = True
+    with pytest.raises(expected_exception=TimeoutError):
+        report_size_deltas.raw_http_request(url=url, data=data)
 
 
 def test_handle_rate_limiting():
@@ -635,7 +773,7 @@ def test_determine_urlopen_retry_true():
 
 def test_determine_urlopen_retry_false():
     assert not reportsizedeltas.determine_urlopen_retry(
-        exception=urllib.error.HTTPError(None, 404, "Not Found", None, None))
+        exception=urllib.error.HTTPError(None, 401, "Unauthorized", None, None))
 
 
 def test_get_page_count():
