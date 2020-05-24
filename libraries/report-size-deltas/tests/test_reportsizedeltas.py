@@ -208,9 +208,7 @@ def test_report_size_deltas(mocker):
         )
         generate_report_calls.append(
             unittest.mock.call(report_size_deltas,
-                               sketches_reports=sketches_reports,
-                               pr_head_sha=pr_data["head"]["sha"],
-                               pr_number=pr_data["number"])
+                               sketches_reports=sketches_reports)
         )
         comment_report_calls.append(
             unittest.mock.call(report_size_deltas, pr_number=pr_data["number"], report_markdown=report)
@@ -560,10 +558,8 @@ def test_get_sketches_reports(sketches_reports_path, expected_sketches_reports):
 
 def test_generate_report():
     sketches_report_path = test_data_path.joinpath("size-deltas-reports-new")
-    pr_head_sha = "asdf123"
-    pr_number = 42
     expected_deltas_report = (
-        "**Memory usage change @[asdf123](https://github.com/FooOwner/BarRepository/pull/42/commits/asdf123)**\n\n"
+        "**Memory usage change @ d8fd302**\n\n"
         "FQBN|flash|RAM for global variables\n"
         "-|-|-\n"
         "arduino:avr:leonardo|:green_heart: -12 - -12|0 - 0\n"
@@ -598,9 +594,7 @@ def test_generate_report():
         raise
     sketches_reports = report_size_deltas.get_sketches_reports(artifact_folder_object=artifact_folder_object)
 
-    report = report_size_deltas.generate_report(sketches_reports=sketches_reports,
-                                                pr_head_sha=pr_head_sha,
-                                                pr_number=pr_number)
+    report = report_size_deltas.generate_report(sketches_reports=sketches_reports)
     assert report == expected_deltas_report
 
 

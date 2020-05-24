@@ -53,7 +53,7 @@ class ReportSizeDeltas:
     artifact_name -- name of the workflow artifact that contains the memory usage data
     token -- GitHub access token
     """
-    report_key_beginning = "**Memory usage change @["
+    report_key_beginning = "**Memory usage change @ "
 
     class ReportKeys:
         """Key names used in the sketches report dictionary"""
@@ -117,9 +117,7 @@ class ReportSizeDeltas:
                 sketches_reports = self.get_sketches_reports(artifact_folder_object=artifact_folder_object)
 
                 if sketches_reports:
-                    report = self.generate_report(sketches_reports=sketches_reports,
-                                                  pr_head_sha=pr_head_sha,
-                                                  pr_number=pr_number)
+                    report = self.generate_report(sketches_reports=sketches_reports)
 
                     self.comment_report(pr_number=pr_number, report_markdown=report)
 
@@ -264,7 +262,7 @@ class ReportSizeDeltas:
 
         return sketches_reports
 
-    def generate_report(self, sketches_reports, pr_head_sha, pr_number):
+    def generate_report(self, sketches_reports):
         """Return the Markdown for the deltas report comment.
 
         Keyword arguments:
@@ -315,9 +313,7 @@ class ReportSizeDeltas:
                     )
 
         # Add comment heading
-        report_markdown = (self.report_key_beginning + pr_head_sha + "]"
-                           + "(https://github.com/" + self.repository_name + "/pull/" + str(pr_number)
-                           + "/commits/" + pr_head_sha + ")**\n\n")
+        report_markdown = self.report_key_beginning + sketches_reports[0][self.ReportKeys.commit_hash] + "**\n\n"
 
         # Add summary table
         report_markdown = report_markdown + generate_markdown_table(row_list=summary_report_data) + "\n"
