@@ -22,8 +22,6 @@ jobs:
 
       - name: Set up Python
         uses: actions/setup-python@v1
-        with:
-          python-version: '3.8.2'
 
       - name: Run tests 
         run: |
