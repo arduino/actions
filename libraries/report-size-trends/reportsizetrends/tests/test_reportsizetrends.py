@@ -367,13 +367,13 @@ def test_create_row():
     Service.execute.assert_called_once()
 
 
-def test_write_memory_usage_data():
+@pytest.mark.parametrize("memory_usage", [11, "N/A"])
+def test_write_memory_usage_data(memory_usage):
     spreadsheet_id = "test_spreadsheet_id"
     sheet_name = "test_sheet_name"
     report_size_trends = get_reportsizetrends_object(spreadsheet_id=spreadsheet_id, sheet_name=sheet_name)
     column_letter = "A"
     row_number = 42
-    memory_usage = 11
 
     Service.update = unittest.mock.MagicMock(return_value=Service())
     Service.execute = unittest.mock.MagicMock()
@@ -384,6 +384,8 @@ def test_write_memory_usage_data():
                                                memory_usage=memory_usage)
     spreadsheet_range = (sheet_name + "!" + column_letter + str(row_number) + ":"
                          + column_letter + str(row_number))
+    if type(memory_usage) is str:
+        memory_usage = "\"" + memory_usage + "\""
     size_data = "[[" + str(memory_usage) + "]]"
     Service.update.assert_called_once_with(spreadsheetId=spreadsheet_id,
                                            range=spreadsheet_range,

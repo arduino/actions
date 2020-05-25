@@ -263,6 +263,10 @@ class ReportSizeTrends:
         memory_usage -- memory usage
         """
         print("::debug::Writing memory usage value:", memory_usage)
+        if type(memory_usage) is str:
+            # The memory usage value may be "N/A". If so, it must be quoted so it can be made into valid JSON for the
+            # Google Sheets API request
+            memory_usage = "\"" + memory_usage + "\""
 
         spreadsheet_range = (self.sheet_name + "!" + column_letter + str(row_number) + ":"
                              + column_letter + str(row_number))
