@@ -90,18 +90,18 @@ class ReportSizeDeltas:
                 # Note: closed PRs are not listed in the API response
                 pr_number = pr_data["number"]
                 pr_head_sha = pr_data["head"]["sha"]
-                logger.debug("Processing pull request #" + str(pr_number) + ", head SHA: " + pr_head_sha)
+                print("::debug::Processing pull request number:", pr_number)
                 # When a PR is locked, only collaborators may comment. The automatically generated GITHUB_TOKEN will
                 # likely be used, which is owned by the github-actions bot, who doesn't have collaborator status. So
                 # locking the thread would cause the job to fail.
                 if pr_data["locked"]:
-                    logger.debug("PR locked, skipping")
+                    print("::debug::PR locked, skipping")
                     continue
 
                 if self.report_exists(pr_number=pr_number,
                                       pr_head_sha=pr_head_sha):
                     # Go on to the next PR
-                    logger.debug("Report already exists")
+                    print("::debug::Report already exists")
                     continue
 
                 artifact_download_url = self.get_artifact_download_url_for_sha(pr_user_login=pr_data["user"]["login"],
@@ -109,7 +109,7 @@ class ReportSizeDeltas:
                                                                                pr_head_sha=pr_head_sha)
                 if artifact_download_url is None:
                     # Go on to the next PR
-                    logger.debug("No artifact found")
+                    print("::debug::No sketches report artifact found")
                     continue
 
                 artifact_folder_object = self.get_artifact(artifact_download_url=artifact_download_url)
@@ -352,6 +352,7 @@ class ReportSizeDeltas:
         pr_number -- pull request number to submit the report to
         report_markdown -- Markdown formatted report
         """
+        print("::debug::Adding deltas report comment to pull request")
         report_data = {"body": report_markdown}
         report_data = json.dumps(obj=report_data)
         report_data = report_data.encode(encoding="utf-8")
@@ -478,7 +479,7 @@ class ReportSizeDeltas:
         if rate_limiting_data["resources"]["core"]["remaining"] == 0:
             # GitHub uses a fixed rate limit window of 60 minutes. The window starts when the API request count goes
             # from 0 to 1. 60 minutes after the start of the window, the request count is reset to 0.
-            logger.warning("GitHub API request quota has been reached. Try again later.")
+            print("::warning::GitHub API request quota has been reached. Giving up for now.")
             sys.exit(0)
 
 
@@ -526,8 +527,7 @@ def determine_urlopen_retry(exception):
     # Other errors are probably permanent so give up
     if str(exception_string).startswith("HTTPError: HTTP Error 401"):
         # Give a nice hint as to the cause of this error
-        logger.error(exception)
-        logger.info("HTTP Error 401 may be caused by providing an incorrect GitHub personal access token.")
+        print("::error::HTTP Error 401 may be caused by providing an incorrect GitHub personal access token.")
     return False
 
 
