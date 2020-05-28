@@ -275,7 +275,7 @@ class ReportSizeDeltas:
         Keyword arguments:
         sketches_reports -- list of sketches_reports containing the data to generate the deltas report from
         """
-        fqbn_column_heading = "FQBN"
+        fqbn_column_heading = "Board"
 
         # Generate summary report data
         summary_report_data = [[fqbn_column_heading]]

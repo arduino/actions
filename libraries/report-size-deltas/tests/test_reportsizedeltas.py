@@ -573,14 +573,14 @@ def test_generate_report():
     sketches_report_path = test_data_path.joinpath("size-deltas-reports-new")
     expected_deltas_report = (
         "**Memory usage change @ d8fd302**\n\n"
-        "FQBN|flash|RAM for global variables\n"
+        "Board|flash|RAM for global variables\n"
         "-|-|-\n"
         "arduino:avr:leonardo|:green_heart: -12 - -12|0 - 0\n"
         "arduino:avr:uno|:green_heart: -994 - -994|:green_heart: -175 - -175\n\n"
         "<details>\n"
         "<summary>Click for full report table</summary>\n\n"
-        "FQBN|examples/Bar<br>flash|examples/Bar<br>RAM for global variables|examples/Foo<br>flash|examples/Foo<br>RAM "
-        "for global variables\n"
+        "Board|examples/Bar<br>flash|examples/Bar<br>RAM for global variables|examples/Foo<br>flash|examples/Foo<br>"
+        "RAM for global variables\n"
         "-|-|-|-|-\n"
         "arduino:avr:leonardo|N/A|N/A|-12|0\n"
         "arduino:avr:uno|N/A|N/A|-994|-175\n\n"
@@ -588,8 +588,8 @@ def test_generate_report():
         "<details>\n"
         "<summary>Click for full report CSV</summary>\n\n"
         "```\n"
-        "FQBN,examples/Bar<br>flash,examples/Bar<br>RAM for global variables,examples/Foo<br>flash,examples/Foo<br>RAM "
-        "for global variables\n"
+        "Board,examples/Bar<br>flash,examples/Bar<br>RAM for global variables,examples/Foo<br>flash,examples/Foo<br>"
+        "RAM for global variables\n"
         "arduino:avr:leonardo,N/A,N/A,-12,0\n"
         "arduino:avr:uno,N/A,N/A,-994,-175\n"
         "```\n"
@@ -804,11 +804,11 @@ def test_get_summary_value(minimum, maximum, expected_value):
 
 def test_generate_markdown_table():
     assert reportsizedeltas.generate_markdown_table(
-        row_list=[["FQBN", "Flash", "RAM"], ["foo:bar:baz", 42, 11]]
-    ) == "FQBN|Flash|RAM\n-|-|-\nfoo:bar:baz|42|11\n"
+        row_list=[["Board", "Flash", "RAM"], ["foo:bar:baz", 42, 11]]
+    ) == "Board|Flash|RAM\n-|-|-\nfoo:bar:baz|42|11\n"
 
 
 def test_generate_csv_table():
-    assert reportsizedeltas.generate_csv_table(row_list=[["FQBN", "Flash", "RAM"], ["foo:bar:baz", 42, 11]]) == (
-        "FQBN,Flash,RAM\nfoo:bar:baz,42,11\n"
+    assert reportsizedeltas.generate_csv_table(row_list=[["Board", "Flash", "RAM"], ["foo:bar:baz", 42, 11]]) == (
+        "Board,Flash,RAM\nfoo:bar:baz,42,11\n"
     )
