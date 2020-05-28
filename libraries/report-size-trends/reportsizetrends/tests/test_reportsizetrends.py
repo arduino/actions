@@ -433,3 +433,9 @@ def test_get_service(mocker):
         info=info, scopes=['https://www.googleapis.com/auth/spreadsheets']
     )
     googleapiclient.discovery.build.assert_called_once_with(serviceName='sheets', version='v4', credentials=credentials)
+
+
+@pytest.mark.parametrize("column_number, expected_column_letter", [(1, "A"), (27, "AA")])
+def test_get_spreadsheet_column_letters_from_number(column_number, expected_column_letter):
+    assert reportsizetrends.get_spreadsheet_column_letters_from_number(
+        column_number=column_number) == expected_column_letter

@@ -185,7 +185,7 @@ class ReportSizeTrends:
             # Use the next column
             index += 1
 
-        data_column_letter = chr(index + 65)
+        data_column_letter = get_spreadsheet_column_letters_from_number(column_number=index + 1)
         logger.info(size_name, "data column:", data_column_letter)
         return {"populated": populated, "letter": data_column_letter}
 
@@ -316,6 +316,20 @@ def get_service(google_key_file):
     credentials = service_account.Credentials.from_service_account_info(
         info=json.loads(google_key_file, strict=False), scopes=['https://www.googleapis.com/auth/spreadsheets'])
     return discovery.build(serviceName='sheets', version='v4', credentials=credentials)
+
+
+def get_spreadsheet_column_letters_from_number(column_number):
+    """Convert spreadsheet column number to letter (e.g., 27 returns AA). https://stackoverflow.com/a/23862195
+
+    Keyword arguments:
+    column_number -- spreadsheet column number. This is 1 indexed to match the row numbering system.
+    """
+    column_letter = ""
+    while column_number > 0:
+        column_number, remainder = divmod(column_number - 1, 26)
+        column_letter = chr(65 + remainder) + column_letter
+
+    return column_letter
 
 
 # Only execute the following code if the script is run directly, not imported
