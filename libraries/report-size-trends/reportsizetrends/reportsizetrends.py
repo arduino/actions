@@ -71,14 +71,14 @@ class ReportSizeTrends:
     ram_heading_indicator = " RAM"
 
     class ReportKeys:
-        fqbn = "fqbn"
+        board = "board"
         commit_hash = "commit_hash"
         commit_url = "commit_url"
         sizes = "sizes"
         name = "name"
         absolute = "absolute"
         current = "current"
-        sketch = "sketch"
+        sketches = "sketches"
 
     def __init__(self, sketches_report_path, google_key_file, spreadsheet_id, sheet_name):
         absolute_sketches_report_path = absolute_path(sketches_report_path)
@@ -87,10 +87,10 @@ class ReportSizeTrends:
             sys.exit(1)
         # load the data from the sketches report
         sketches_report = get_sketches_report(sketches_report_path=absolute_sketches_report_path)
-        self.fqbn = sketches_report[self.ReportKeys.fqbn]
+        self.fqbn = sketches_report[self.ReportKeys.board]
         self.commit_hash = sketches_report[self.ReportKeys.commit_hash]
         self.commit_url = sketches_report[self.ReportKeys.commit_url]
-        self.sketch_reports = sketches_report[self.ReportKeys.sketch]
+        self.sketch_reports = sketches_report[self.ReportKeys.sketches]
 
         self.service = get_service(google_key_file=google_key_file)
         self.spreadsheet_id = spreadsheet_id

@@ -53,7 +53,7 @@ def get_reportsizetrends_object(fqbn="foo:bar:baz",
     # This system is needed to avoid sketches_data having a mutable default argument
     if sketch_reports is None:
         sketch_reports = {
-            reportsizetrends.ReportSizeTrends.ReportKeys.sketch: [
+            reportsizetrends.ReportSizeTrends.ReportKeys.sketches: [
                 {
                     reportsizetrends.ReportSizeTrends.ReportKeys.name: "FooSketch",
                     reportsizetrends.ReportSizeTrends.ReportKeys.sizes: [
@@ -68,7 +68,7 @@ def get_reportsizetrends_object(fqbn="foo:bar:baz",
             ]
         }
 
-    sketches_report = {reportsizetrends.ReportSizeTrends.ReportKeys.fqbn: fqbn,
+    sketches_report = {reportsizetrends.ReportSizeTrends.ReportKeys.board: fqbn,
                        reportsizetrends.ReportSizeTrends.ReportKeys.commit_hash: commit_hash,
                        reportsizetrends.ReportSizeTrends.ReportKeys.commit_url: commit_url}
 
@@ -134,10 +134,10 @@ def test_reportsizetrends(capsys, monkeypatch, mocker, report_path_exists):
     commit_hash = "foohash"
     commit_url = "https://example.com/foo"
     sketch_reports = unittest.mock.sentinel.sketch_reports
-    sketches_report = {reportsizetrends.ReportSizeTrends.ReportKeys.fqbn: fqbn,
+    sketches_report = {reportsizetrends.ReportSizeTrends.ReportKeys.board: fqbn,
                        reportsizetrends.ReportSizeTrends.ReportKeys.commit_hash: commit_hash,
                        reportsizetrends.ReportSizeTrends.ReportKeys.commit_url: commit_url,
-                       reportsizetrends.ReportSizeTrends.ReportKeys.sketch: sketch_reports}
+                       reportsizetrends.ReportSizeTrends.ReportKeys.sketches: sketch_reports}
     sketches_report_path = "foo/sketches-report-path"
     google_key_file = "foo-key-file"
     service = unittest.mock.sentinel.service
