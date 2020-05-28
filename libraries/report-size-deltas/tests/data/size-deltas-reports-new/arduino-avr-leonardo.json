@@ -1,8 +1,8 @@
 {
-  "fqbn": "arduino:avr:leonardo",
+  "board": "arduino:avr:leonardo",
   "commit_hash": "d8fd302",
   "commit_url": "https://example.com/foo",
-  "sketch": [
+  "sketches": [
     {
       "name": "examples/Bar",
       "compilation_success": true,

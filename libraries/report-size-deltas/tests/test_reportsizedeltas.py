@@ -379,7 +379,7 @@ def test_get_artifact(tmp_path, test_artifact_name, expected_success):
                 {
                     report_keys.commit_hash: "d8fd302",
                     report_keys.commit_url: "https://example.com/foo",
-                    report_keys.fqbn: "arduino:avr:leonardo",
+                    report_keys.board: "arduino:avr:leonardo",
                     report_keys.sizes: [
                         {
                             report_keys.delta: {
@@ -400,7 +400,7 @@ def test_get_artifact(tmp_path, test_artifact_name, expected_success):
                             report_keys.name: "RAM for global variables"
                         }
                     ],
-                    report_keys.sketch: [
+                    report_keys.sketches: [
                         {
                             report_keys.compilation_success: True,
                             report_keys.name: "examples/Bar",
@@ -466,7 +466,7 @@ def test_get_artifact(tmp_path, test_artifact_name, expected_success):
                 {
                     report_keys.commit_hash: "d8fd302",
                     report_keys.commit_url: "https://example.com/foo",
-                    report_keys.fqbn: "arduino:avr:uno",
+                    report_keys.board: "arduino:avr:uno",
                     report_keys.sizes: [
                         {
                             report_keys.delta: {
@@ -487,7 +487,7 @@ def test_get_artifact(tmp_path, test_artifact_name, expected_success):
                             report_keys.name: "RAM for global variables"
                         }
                     ],
-                    report_keys.sketch: [
+                    report_keys.sketches: [
                         {
                             report_keys.compilation_success: True,
                             report_keys.name: "examples/Bar",

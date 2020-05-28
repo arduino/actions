@@ -57,7 +57,7 @@ class ReportSizeDeltas:
 
     class ReportKeys:
         """Key names used in the sketches report dictionary"""
-        fqbn = "fqbn"
+        board = "board"
         commit_hash = "commit_hash"
         commit_url = "commit_url"
         sizes = "sizes"
@@ -68,7 +68,7 @@ class ReportSizeDeltas:
         delta = "delta"
         minimum = "minimum"
         maximum = "maximum"
-        sketch = "sketch"
+        sketches = "sketches"
         compilation_success = "compilation_success"
 
     def __init__(self, repository_name, artifact_name, token):
@@ -254,7 +254,7 @@ class ReportSizeDeltas:
                 # Combine sketches reports into an array
                 with open(file=artifact_folder + "/" + report_filename) as report_file:
                     report_data = json.load(report_file)
-                    if type(report_data[self.ReportKeys.sketch]) is not list:
+                    if self.ReportKeys.sketches not in report_data:
                         # Sketches reports use the old format, skip
                         print("Old format sketches report found, skipping")
                         continue
@@ -282,7 +282,7 @@ class ReportSizeDeltas:
         for row_number, fqbn_data in enumerate(iterable=sketches_reports, start=1):
             # Add a row to the report
             row = ["" for _ in range(len(summary_report_data[0]))]
-            row[0] = fqbn_data[self.ReportKeys.fqbn]
+            row[0] = fqbn_data[self.ReportKeys.board]
             summary_report_data.append(row)
 
             # Populate the row with data
@@ -303,11 +303,11 @@ class ReportSizeDeltas:
         for row_number, fqbn_data in enumerate(iterable=sketches_reports, start=1):
             # Add a row to the report
             row = ["" for _ in range(len(full_report_data[0]))]
-            row[0] = fqbn_data[self.ReportKeys.fqbn]
+            row[0] = fqbn_data[self.ReportKeys.board]
             full_report_data.append(row)
 
             # Populate the row with data
-            for sketch in fqbn_data[self.ReportKeys.sketch]:
+            for sketch in fqbn_data[self.ReportKeys.sketches]:
                 for size_data in sketch[self.ReportKeys.sizes]:
                     # Determine column number for this memory type
                     column_number = get_report_column_number(
