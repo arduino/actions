@@ -34,7 +34,8 @@ def get_reportsizetrends_object(fqbn="foo:bar:baz",
                                 sketches_report_path="foo-sketches-report-path",
                                 google_key_file="foo-key-file",
                                 spreadsheet_id="foo-spreadsheet-id",
-                                sheet_name="foo-sheet-name"):
+                                sheet_name="foo-sheet-name",
+                                sheet_id="42"):
     # This system is needed to avoid sketches_data having a mutable default argument
     if sketch_reports is None:
         sketch_reports = {
@@ -66,10 +67,14 @@ def get_reportsizetrends_object(fqbn="foo:bar:baz",
             with unittest.mock.patch("reportsizetrends.get_service",
                                      autospec=True,
                                      return_value=unittest.mock.sentinel.service):
-                report_size_trends_object = reportsizetrends.ReportSizeTrends(sketches_report_path=sketches_report_path,
-                                                                              google_key_file=google_key_file,
-                                                                              spreadsheet_id=spreadsheet_id,
-                                                                              sheet_name=sheet_name)
+                with unittest.mock.patch("reportsizetrends.ReportSizeTrends.get_sheet_id",
+                                         autospec=True,
+                                         return_value=sheet_id):
+                    report_size_trends_object = reportsizetrends.ReportSizeTrends(
+                        sketches_report_path=sketches_report_path,
+                        google_key_file=google_key_file,
+                        spreadsheet_id=spreadsheet_id,
+                        sheet_name=sheet_name)
 
     return report_size_trends_object
 
@@ -124,12 +129,14 @@ def test_reportsizetrends(capsys, monkeypatch, mocker, report_path_exists):
     service = unittest.mock.sentinel.service
     spreadsheet_id = "foo-spreadsheet-id"
     sheet_name = "foo-sheet-name"
+    sheet_id = unittest.mock.sentinel.sheet_id
 
     monkeypatch.setenv("GITHUB_WORKSPACE", "/foo/github-workspace")
 
     mocker.patch("pathlib.Path.exists", autospec=True, return_value=report_path_exists)
     mocker.patch("reportsizetrends.get_sketches_report", autospec=True, return_value=sketches_report)
     mocker.patch("reportsizetrends.get_service", autospec=True, return_value=service)
+    mocker.patch("reportsizetrends.ReportSizeTrends.get_sheet_id", autospec=True, return_value=sheet_id)
 
     if report_path_exists is False:
         with pytest.raises(expected_exception=SystemExit, match="1"):
@@ -156,6 +163,7 @@ def test_reportsizetrends(capsys, monkeypatch, mocker, report_path_exists):
         assert report_size_trends.service == service
         assert report_size_trends.spreadsheet_id == spreadsheet_id
         assert report_size_trends.sheet_name == sheet_name
+        assert report_size_trends.sheet_id == sheet_id
 
 
 @pytest.mark.parametrize("heading_row_data", [{}, {"values": "foo"}])
@@ -304,6 +312,7 @@ def test_populate_data_column_heading():
     sketch_name = "foo/SketchName"
     size_name = "foo size name"
 
+    report_size_trends.expand_sheet = unittest.mock.MagicMock()
     Service.update = unittest.mock.MagicMock(return_value=Service())
     Service.execute = unittest.mock.MagicMock()
     report_size_trends.service = Service()
@@ -314,10 +323,64 @@ def test_populate_data_column_heading():
     spreadsheet_range = (sheet_name + "!" + data_column_letter + report_size_trends.heading_row_number + ":"
                          + data_column_letter + report_size_trends.heading_row_number)
     data_heading_data = ("[[\"" + report_size_trends.fqbn + "\\n" + sketch_name + "\\n" + size_name + "\"]]")
+    report_size_trends.expand_sheet.assert_called_once_with(dimension="COLUMNS")
     Service.update.assert_called_once_with(spreadsheetId=spreadsheet_id,
                                            range=spreadsheet_range,
                                            valueInputOption="RAW",
                                            body={"values": json.loads(data_heading_data)})
+    Service.execute.assert_called_once()
+
+
+def test_expand_sheet():
+    spreadsheet_id = unittest.mock.sentinel.spreadsheet_id
+    sheet_id = unittest.mock.sentinel.sheet_id
+    dimension = unittest.mock.sentinel.dimension
+
+    report_size_trends = get_reportsizetrends_object(spreadsheet_id=spreadsheet_id, sheet_id=sheet_id)
+
+    Service.batchUpdate = unittest.mock.MagicMock(return_value=Service())
+    Service.execute = unittest.mock.MagicMock()
+    report_size_trends.service = Service()
+
+    report_size_trends.expand_sheet(dimension=dimension)
+
+    Service.batchUpdate.assert_called_once_with(
+        spreadsheetId=spreadsheet_id,
+        body={
+            "requests": [
+                {
+                    "appendDimension": {
+                        "sheetId": sheet_id,
+                        "dimension": dimension,
+                        "length": 1
+                    }
+                }
+            ]
+        }
+    )
+    Service.execute.assert_called_once()
+
+
+@pytest.mark.parametrize("spreadsheet_object_sheets, expected_sheet_id",
+                         [([{"properties": {"title": "SheetName", "sheetId": 42}}], 42),
+                          ([{"properties": {"title": "NotSheetName", "sheetId": 42}}], None)])
+def test_get_sheet_id(spreadsheet_object_sheets, expected_sheet_id):
+    spreadsheet_id = unittest.mock.sentinel.spreadsheet_id
+    sheet_name = "SheetName"
+
+    report_size_trends = get_reportsizetrends_object(spreadsheet_id=spreadsheet_id, sheet_name=sheet_name)
+
+    Service.get = unittest.mock.MagicMock(return_value=Service())
+    Service.execute = unittest.mock.MagicMock(return_value={"sheets": spreadsheet_object_sheets})
+    report_size_trends.service = Service()
+
+    if expected_sheet_id is None:
+        with pytest.raises(expected_exception=SystemExit, match="1"):
+            report_size_trends.get_sheet_id()
+    else:
+        assert report_size_trends.get_sheet_id() == expected_sheet_id
+
+    Service.get.assert_called_once_with(spreadsheetId=spreadsheet_id)
     Service.execute.assert_called_once()
 
 
@@ -350,6 +413,7 @@ def test_create_row():
                                                      commit_url=commit_url)
     row_number = 42
 
+    report_size_trends.expand_sheet = unittest.mock.MagicMock()
     Service.update = unittest.mock.MagicMock(return_value=Service())
     Service.execute = unittest.mock.MagicMock()
     report_size_trends.service = Service()
@@ -360,6 +424,7 @@ def test_create_row():
     shared_data_columns_data = ("[[\"" + '{:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now())
                                 + "\",\"=HYPERLINK(\\\"" + commit_url
                                 + "\\\",T(\\\"" + report_size_trends.commit_hash + "\\\"))\"]]")
+    report_size_trends.expand_sheet.assert_called_once_with(dimension="ROWS")
     Service.update.assert_called_once_with(spreadsheetId=spreadsheet_id,
                                            range=spreadsheet_range,
                                            valueInputOption="USER_ENTERED",

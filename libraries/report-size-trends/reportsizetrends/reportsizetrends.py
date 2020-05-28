@@ -92,8 +92,9 @@ class ReportSizeTrends:
         self.sketch_reports = sketches_report[self.ReportKeys.sketch]
 
         self.service = get_service(google_key_file=google_key_file)
-        self.sheet_name = sheet_name
         self.spreadsheet_id = spreadsheet_id
+        self.sheet_name = sheet_name
+        self.sheet_id = self.get_sheet_id()
 
     def report_size_trends(self):
         """Add memory usage data to a Google Sheets spreadsheet"""
@@ -199,6 +200,11 @@ class ReportSizeTrends:
         """
         logger.info("No data columns found for " + self.fqbn + ", " + sketch_name + ", " + size_name
                     + ". Adding column heading at column " + data_column_letter)
+
+        # Append a column to the sheet to make sure there is space for the new column
+        self.expand_sheet(dimension="COLUMNS")
+
+        # Add the column heading
         spreadsheet_range = (self.sheet_name + "!" + data_column_letter + self.heading_row_number + ":"
                              + data_column_letter + self.heading_row_number)
         data_heading_data = ("[[\"" + self.fqbn + "\\n" + sketch_name + "\\n" + size_name + "\"]]")
@@ -208,6 +214,50 @@ class ReportSizeTrends:
                                                               body={"values": json.loads(data_heading_data)})
         response = request.execute()
         logger.debug(response)
+
+    def expand_sheet(self, dimension):
+        """A new sheet provides a limited number of columns and rows, so it's necessary to expand the size of the sheet.
+
+        Keyword arguments:
+        dimension -- whether to add a column or a row ("COLUMNS", "ROWS")
+        """
+        append_request_body = {
+            "requests": [
+                {
+                    "appendDimension": {
+                        "sheetId": self.sheet_id,
+                        "dimension": dimension,
+                        "length": 1
+                    }
+                }
+            ]
+        }
+        request = self.service.spreadsheets().batchUpdate(spreadsheetId=self.spreadsheet_id, body=append_request_body)
+        response = request.execute()
+        logger.debug(response)
+
+    def get_sheet_id(self):
+        """While the sheet name is used in the A1 notation used in update value Google Sheets API requests, other
+        requests require the sheet ID. Given a spreadsheet ID and sheet name, the sheet ID may be determined from the
+        Google Sheets API.
+        """
+        sheet_id = None
+        request = self.service.spreadsheets().get(spreadsheetId=self.spreadsheet_id)
+        spreadsheet_object = request.execute()
+        for sheet in spreadsheet_object["sheets"]:
+            if sheet["properties"]["title"] == self.sheet_name:
+                sheet_id = sheet["properties"]["sheetId"]
+                break
+
+        if sheet_id is None:
+            print("::error::Spreadsheet ID:",
+                  self.spreadsheet_id,
+                  "does not contain the sheet name:",
+                  self.sheet_name,
+                  "provided via the sheet-name input.")
+            sys.exit(1)
+        else:
+            return sheet_id
 
     def get_current_row(self):
         """Return a dictionary for the current row:
@@ -242,6 +292,11 @@ class ReportSizeTrends:
         """
         logger.info("No row found for the commit hash: " + self.commit_hash + ". Creating a new row #"
                     + str(row_number))
+        # Append a row to make sure there is space in the sheet for the new row
+        # Append a column to the sheet to make sure there is space for the new column
+        self.expand_sheet(dimension="ROWS")
+
+        # Write the data to the row
         spreadsheet_range = (self.sheet_name + "!" + self.shared_data_first_column_letter + str(row_number)
                              + ":" + self.shared_data_last_column_letter + str(row_number))
         shared_data_columns_data = ("[[\"" + "{:%Y-%m-%d %H:%M:%S}".format(datetime.datetime.now())
