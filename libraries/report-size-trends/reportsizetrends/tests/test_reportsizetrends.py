@@ -13,15 +13,28 @@ import reportsizetrends
 
 # Stub
 class Service:
-    x = 0
+    _ = 0
 
     def spreadsheets(self):
-        self.x = 42
+        self._ = 42
         return Service()
 
     def values(self):
-        self.x = 42
+        self._ = 42
         return Service()
+
+    def get(self):
+        pass
+
+    def update(self):
+        pass
+
+    # noinspection PyPep8Naming
+    def batchUpdate(self):  # noqa: N802
+        pass
+
+    def execute(self):
+        pass
 
 
 reportsizetrends.set_verbosity(enable_verbosity=False)
@@ -66,7 +79,7 @@ def get_reportsizetrends_object(fqbn="foo:bar:baz",
         with unittest.mock.patch("reportsizetrends.get_sketches_report", autospec=True, return_value=sketches_report):
             with unittest.mock.patch("reportsizetrends.get_service",
                                      autospec=True,
-                                     return_value=unittest.mock.sentinel.service):
+                                     return_value=Service()):
                 with unittest.mock.patch("reportsizetrends.ReportSizeTrends.get_sheet_id",
                                          autospec=True,
                                          return_value=sheet_id):
@@ -167,12 +180,12 @@ def test_reportsizetrends(capsys, monkeypatch, mocker, report_path_exists):
 
 
 @pytest.mark.parametrize("heading_row_data", [{}, {"values": "foo"}])
-def test_report_size_trends(heading_row_data):
+def test_report_size_trends(mocker, heading_row_data):
     report_size_trends = get_reportsizetrends_object()
 
-    report_size_trends.get_heading_row_data = unittest.mock.MagicMock(return_value=heading_row_data)
-    report_size_trends.populate_shared_data_headings = unittest.mock.MagicMock()
-    report_size_trends.report_size_trend = unittest.mock.MagicMock()
+    mocker.patch("reportsizetrends.ReportSizeTrends.get_heading_row_data", autospec=True, return_value=heading_row_data)
+    mocker.patch("reportsizetrends.ReportSizeTrends.populate_shared_data_headings", autospec=True)
+    mocker.patch("reportsizetrends.ReportSizeTrends.report_size_trend", autospec=True)
 
     # There will always be at least one call one call of get_heading_row_data()
     get_heading_row_data_calls = [unittest.mock.call()]
@@ -180,7 +193,8 @@ def test_report_size_trends(heading_row_data):
     for sketch_report in report_size_trends.sketch_reports:
         for size_report in sketch_report[reportsizetrends.ReportSizeTrends.ReportKeys.sizes]:
             get_heading_row_data_calls.append(unittest.mock.call())
-            report_size_trend_calls.append(unittest.mock.call(heading_row_data=heading_row_data,
+            report_size_trend_calls.append(unittest.mock.call(report_size_trends,
+                                                              heading_row_data=heading_row_data,
                                                               sketch_report=sketch_report,
                                                               size_report=size_report))
 
@@ -194,15 +208,14 @@ def test_report_size_trends(heading_row_data):
     report_size_trends.report_size_trend.assert_has_calls(report_size_trend_calls)
 
 
-def test_get_heading_row_data():
+def test_get_heading_row_data(mocker):
     spreadsheet_id = "test_spreadsheet_id"
     sheet_name = "test_sheet_name"
     report_size_trends = get_reportsizetrends_object(spreadsheet_id=spreadsheet_id, sheet_name=sheet_name)
     heading_row_data = "test_heading_row_data"
 
-    Service.get = unittest.mock.MagicMock(return_value=Service())
-    Service.execute = unittest.mock.MagicMock(return_value=heading_row_data)
-    report_size_trends.service = Service()
+    mocker.patch.object(Service, "get", return_value=Service())
+    mocker.patch.object(Service, "execute", return_value=heading_row_data)
 
     assert heading_row_data == report_size_trends.get_heading_row_data()
     spreadsheet_range = (sheet_name + "!" + report_size_trends.heading_row_number + ":"
@@ -213,7 +226,7 @@ def test_get_heading_row_data():
 
 @pytest.mark.parametrize("data_column_letter_populated", [False, True])
 @pytest.mark.parametrize("current_row_populated", [False, True])
-def test_report_size_trend(data_column_letter_populated, current_row_populated):
+def test_report_size_trend(mocker, data_column_letter_populated, current_row_populated):
     current_row = {"populated": current_row_populated, "number": 42}
     data_column_letter = {"populated": data_column_letter_populated, "letter": "A"}
     heading_row_data = unittest.mock.sentinel.heading_row_data
@@ -224,11 +237,13 @@ def test_report_size_trend(data_column_letter_populated, current_row_populated):
     sketch_report = report_size_trends.sketch_reports[0]
     size_report = sketch_report[report_keys.sizes][0]
 
-    report_size_trends.get_data_column_letter = unittest.mock.MagicMock(return_value=data_column_letter)
-    report_size_trends.populate_data_column_heading = unittest.mock.MagicMock()
-    report_size_trends.get_current_row = unittest.mock.MagicMock(return_value=current_row)
-    report_size_trends.create_row = unittest.mock.MagicMock()
-    report_size_trends.write_memory_usage_data = unittest.mock.MagicMock()
+    mocker.patch("reportsizetrends.ReportSizeTrends.get_data_column_letter",
+                 autospec=True,
+                 return_value=data_column_letter)
+    mocker.patch("reportsizetrends.ReportSizeTrends.populate_data_column_heading", autospec=True)
+    mocker.patch("reportsizetrends.ReportSizeTrends.get_current_row", autospec=True, return_value=current_row)
+    mocker.patch("reportsizetrends.ReportSizeTrends.create_row", autospec=True)
+    mocker.patch("reportsizetrends.ReportSizeTrends.write_memory_usage_data", autospec=True)
 
     report_size_trends.report_size_trend(heading_row_data=heading_row_data,
                                          sketch_report=sketch_report,
@@ -236,6 +251,7 @@ def test_report_size_trend(data_column_letter_populated, current_row_populated):
 
     if not data_column_letter["populated"]:
         report_size_trends.populate_data_column_heading.assert_called_once_with(
+            report_size_trends,
             data_column_letter=data_column_letter["letter"],
             sketch_name=sketch_report[report_keys.name],
             size_name=size_report[report_keys.name]
@@ -246,25 +262,25 @@ def test_report_size_trend(data_column_letter_populated, current_row_populated):
     report_size_trends.get_current_row.assert_called_once()
 
     if not current_row["populated"]:
-        report_size_trends.create_row.assert_called_once_with(row_number=current_row["number"])
+        report_size_trends.create_row.assert_called_once_with(report_size_trends, row_number=current_row["number"])
     else:
         report_size_trends.create_row.assert_not_called()
 
     report_size_trends.write_memory_usage_data.assert_called_once_with(
+        report_size_trends,
         column_letter=data_column_letter["letter"],
         row_number=current_row["number"],
         memory_usage=size_report[report_keys.current][report_keys.absolute]
     )
 
 
-def test_populate_shared_data_headings():
+def test_populate_shared_data_headings(mocker):
     spreadsheet_id = "test_spreadsheet_id"
     sheet_name = "test_sheet_name"
     report_size_trends = get_reportsizetrends_object(spreadsheet_id=spreadsheet_id, sheet_name=sheet_name, )
 
-    Service.update = unittest.mock.MagicMock(return_value=Service())
-    Service.execute = unittest.mock.MagicMock()
-    report_size_trends.service = Service()
+    mocker.patch.object(Service, "update", return_value=Service())
+    mocker.patch.object(Service, "execute")
 
     report_size_trends.populate_shared_data_headings()
     spreadsheet_range = (
@@ -302,7 +318,7 @@ def test_get_data_column_letter(size_name, expected_populated, expected_letter):
     assert expected_letter == column_letter["letter"]
 
 
-def test_populate_data_column_heading():
+def test_populate_data_column_heading(mocker):
     spreadsheet_id = "test_spreadsheet_id"
     sheet_name = "test_sheet_name"
     fqbn = "test_fqbn"
@@ -312,10 +328,9 @@ def test_populate_data_column_heading():
     sketch_name = "foo/SketchName"
     size_name = "foo size name"
 
-    report_size_trends.expand_sheet = unittest.mock.MagicMock()
-    Service.update = unittest.mock.MagicMock(return_value=Service())
-    Service.execute = unittest.mock.MagicMock()
-    report_size_trends.service = Service()
+    mocker.patch("reportsizetrends.ReportSizeTrends.expand_sheet", autospec=True)
+    mocker.patch.object(Service, "update", return_value=Service())
+    mocker.patch.object(Service, "execute")
 
     report_size_trends.populate_data_column_heading(data_column_letter=data_column_letter,
                                                     sketch_name=sketch_name,
@@ -323,7 +338,7 @@ def test_populate_data_column_heading():
     spreadsheet_range = (sheet_name + "!" + data_column_letter + report_size_trends.heading_row_number + ":"
                          + data_column_letter + report_size_trends.heading_row_number)
     data_heading_data = ("[[\"" + report_size_trends.fqbn + "\\n" + sketch_name + "\\n" + size_name + "\"]]")
-    report_size_trends.expand_sheet.assert_called_once_with(dimension="COLUMNS")
+    report_size_trends.expand_sheet.assert_called_once_with(report_size_trends, dimension="COLUMNS")
     Service.update.assert_called_once_with(spreadsheetId=spreadsheet_id,
                                            range=spreadsheet_range,
                                            valueInputOption="RAW",
@@ -331,16 +346,15 @@ def test_populate_data_column_heading():
     Service.execute.assert_called_once()
 
 
-def test_expand_sheet():
+def test_expand_sheet(mocker):
     spreadsheet_id = unittest.mock.sentinel.spreadsheet_id
     sheet_id = unittest.mock.sentinel.sheet_id
     dimension = unittest.mock.sentinel.dimension
 
     report_size_trends = get_reportsizetrends_object(spreadsheet_id=spreadsheet_id, sheet_id=sheet_id)
 
-    Service.batchUpdate = unittest.mock.MagicMock(return_value=Service())
-    Service.execute = unittest.mock.MagicMock()
-    report_size_trends.service = Service()
+    mocker.patch.object(Service, "batchUpdate", return_value=Service())
+    mocker.patch.object(Service, "execute")
 
     report_size_trends.expand_sheet(dimension=dimension)
 
@@ -364,15 +378,14 @@ def test_expand_sheet():
 @pytest.mark.parametrize("spreadsheet_object_sheets, expected_sheet_id",
                          [([{"properties": {"title": "SheetName", "sheetId": 42}}], 42),
                           ([{"properties": {"title": "NotSheetName", "sheetId": 42}}], None)])
-def test_get_sheet_id(spreadsheet_object_sheets, expected_sheet_id):
+def test_get_sheet_id(mocker, spreadsheet_object_sheets, expected_sheet_id):
     spreadsheet_id = unittest.mock.sentinel.spreadsheet_id
     sheet_name = "SheetName"
 
     report_size_trends = get_reportsizetrends_object(spreadsheet_id=spreadsheet_id, sheet_name=sheet_name)
 
-    Service.get = unittest.mock.MagicMock(return_value=Service())
-    Service.execute = unittest.mock.MagicMock(return_value={"sheets": spreadsheet_object_sheets})
-    report_size_trends.service = Service()
+    mocker.patch.object(Service, "get", return_value=Service())
+    mocker.patch.object(Service, "execute", return_value={"sheets": spreadsheet_object_sheets})
 
     if expected_sheet_id is None:
         with pytest.raises(expected_exception=SystemExit, match="1"):
@@ -384,27 +397,27 @@ def test_get_sheet_id(spreadsheet_object_sheets, expected_sheet_id):
     Service.execute.assert_called_once()
 
 
-def test_get_current_row():
+def test_get_current_row(mocker):
     spreadsheet_id = "test_spreadsheet_id"
     sheet_name = "test_sheet_name"
     commit_hash = "test_commit_hash"
     report_size_trends = get_reportsizetrends_object(spreadsheet_id=spreadsheet_id,
                                                      sheet_name=sheet_name,
                                                      commit_hash=commit_hash)
-    Service.get = unittest.mock.MagicMock(return_value=Service())
-    Service.execute = unittest.mock.MagicMock(return_value={"values": [["foo"], [commit_hash]]})
-    report_size_trends.service = Service()
+
+    mocker.patch.object(Service, "get", return_value=Service())
+    mocker.patch.object(Service, "execute", return_value={"values": [["foo"], [commit_hash]]})
 
     assert {"populated": True, "number": 2} == report_size_trends.get_current_row()
     spreadsheet_range = (sheet_name + "!" + report_size_trends.commit_hash_column_letter + ":"
                          + report_size_trends.commit_hash_column_letter)
     Service.get.assert_called_once_with(spreadsheetId=spreadsheet_id, range=spreadsheet_range)
     Service.execute.assert_called_once()
-    Service.execute = unittest.mock.MagicMock(return_value={"values": [["foo"], ["bar"]]})
+    Service.execute.return_value = {"values": [["foo"], ["bar"]]}
     assert {"populated": False, "number": 3} == report_size_trends.get_current_row()
 
 
-def test_create_row():
+def test_create_row(mocker):
     spreadsheet_id = "test_spreadsheet_id"
     sheet_name = "test_sheet_name"
     commit_url = "test_commit_url"
@@ -413,10 +426,9 @@ def test_create_row():
                                                      commit_url=commit_url)
     row_number = 42
 
-    report_size_trends.expand_sheet = unittest.mock.MagicMock()
-    Service.update = unittest.mock.MagicMock(return_value=Service())
-    Service.execute = unittest.mock.MagicMock()
-    report_size_trends.service = Service()
+    mocker.patch("reportsizetrends.ReportSizeTrends.expand_sheet", autospec=True)
+    mocker.patch.object(Service, "update", return_value=Service())
+    mocker.patch.object(Service, "execute")
 
     report_size_trends.create_row(row_number=row_number)
     spreadsheet_range = (sheet_name + "!" + report_size_trends.shared_data_first_column_letter + str(row_number)
@@ -424,7 +436,7 @@ def test_create_row():
     shared_data_columns_data = ("[[\"" + '{:%Y-%m-%d %H:%M:%S}'.format(datetime.datetime.now())
                                 + "\",\"=HYPERLINK(\\\"" + commit_url
                                 + "\\\",T(\\\"" + report_size_trends.commit_hash + "\\\"))\"]]")
-    report_size_trends.expand_sheet.assert_called_once_with(dimension="ROWS")
+    report_size_trends.expand_sheet.assert_called_once_with(report_size_trends, dimension="ROWS")
     Service.update.assert_called_once_with(spreadsheetId=spreadsheet_id,
                                            range=spreadsheet_range,
                                            valueInputOption="USER_ENTERED",
@@ -433,16 +445,15 @@ def test_create_row():
 
 
 @pytest.mark.parametrize("memory_usage", [11, "N/A"])
-def test_write_memory_usage_data(memory_usage):
+def test_write_memory_usage_data(mocker, memory_usage):
     spreadsheet_id = "test_spreadsheet_id"
     sheet_name = "test_sheet_name"
     report_size_trends = get_reportsizetrends_object(spreadsheet_id=spreadsheet_id, sheet_name=sheet_name)
     column_letter = "A"
     row_number = 42
 
-    Service.update = unittest.mock.MagicMock(return_value=Service())
-    Service.execute = unittest.mock.MagicMock()
-    report_size_trends.service = Service()
+    mocker.patch.object(Service, "update", return_value=Service())
+    mocker.patch.object(Service, "execute")
 
     report_size_trends.write_memory_usage_data(column_letter=column_letter,
                                                row_number=row_number,
