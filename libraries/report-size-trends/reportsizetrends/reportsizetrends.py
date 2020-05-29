@@ -4,6 +4,7 @@ import logging
 import os
 import pathlib
 import sys
+import time
 
 from google.oauth2 import service_account
 from googleapiclient import discovery
@@ -121,7 +122,7 @@ class ReportSizeTrends:
         """Return the contents of the heading row"""
         spreadsheet_range = self.sheet_name + "!" + self.heading_row_number + ":" + self.heading_row_number
         request = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheet_id, range=spreadsheet_range)
-        response = request.execute()
+        response = execute_google_api_request(request=request)
         logger.debug("heading_row_data: ")
         logger.debug(response)
         return response
@@ -162,7 +163,7 @@ class ReportSizeTrends:
                                                               valueInputOption="RAW",
                                                               body={"values": json.loads(
                                                                   self.shared_data_columns_headings_data)})
-        response = request.execute()
+        response = execute_google_api_request(request=request)
         logger.debug(response)
 
     def get_data_column_letter(self, heading_row_data, sketch_name, size_name):
@@ -212,7 +213,7 @@ class ReportSizeTrends:
                                                               range=spreadsheet_range,
                                                               valueInputOption="RAW",
                                                               body={"values": json.loads(data_heading_data)})
-        response = request.execute()
+        response = execute_google_api_request(request=request)
         logger.debug(response)
 
     def expand_sheet(self, dimension):
@@ -233,7 +234,7 @@ class ReportSizeTrends:
             ]
         }
         request = self.service.spreadsheets().batchUpdate(spreadsheetId=self.spreadsheet_id, body=append_request_body)
-        response = request.execute()
+        response = execute_google_api_request(request=request)
         logger.debug(response)
 
     def get_sheet_id(self):
@@ -243,7 +244,7 @@ class ReportSizeTrends:
         """
         sheet_id = None
         request = self.service.spreadsheets().get(spreadsheetId=self.spreadsheet_id)
-        spreadsheet_object = request.execute()
+        spreadsheet_object = execute_google_api_request(request=request)
         for sheet in spreadsheet_object["sheets"]:
             if sheet["properties"]["title"] == self.sheet_name:
                 sheet_id = sheet["properties"]["sheetId"]
@@ -268,7 +269,7 @@ class ReportSizeTrends:
                              + self.commit_hash_column_letter)
         request = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheet_id,
                                                            range=spreadsheet_range)
-        commit_hash_column_data = request.execute()
+        commit_hash_column_data = execute_google_api_request(request=request)
         logger.debug(commit_hash_column_data)
 
         populated = False
@@ -306,7 +307,7 @@ class ReportSizeTrends:
                                                               range=spreadsheet_range,
                                                               valueInputOption="USER_ENTERED",
                                                               body={"values": json.loads(shared_data_columns_data)})
-        response = request.execute()
+        response = execute_google_api_request(request=request)
         logger.debug(response)
 
     def write_memory_usage_data(self, column_letter, row_number, memory_usage):
@@ -330,7 +331,7 @@ class ReportSizeTrends:
                                                               range=spreadsheet_range,
                                                               valueInputOption="RAW",
                                                               body={"values": json.loads(size_data)})
-        response = request.execute()
+        response = execute_google_api_request(request=request)
         logger.debug(response)
 
 
@@ -371,6 +372,58 @@ def get_service(google_key_file):
     credentials = service_account.Credentials.from_service_account_info(
         info=json.loads(google_key_file, strict=False), scopes=['https://www.googleapis.com/auth/spreadsheets'])
     return discovery.build(serviceName='sheets', version='v4', credentials=credentials)
+
+
+def execute_google_api_request(request):
+    """Execute a Google API request and return the response.
+
+    Keyword arguments:
+    request -- request object
+    """
+    maximum_request_attempts = 3
+
+    request_attempt_count = 0
+    while True:
+        request_attempt_count += 1
+        try:
+            return request.execute()
+        except Exception as exception:
+            if (
+                request_attempt_count >= maximum_request_attempts
+                or determine_request_retry(exception=exception) is False
+            ):
+                raise exception
+
+
+def determine_request_retry(exception):
+    """Determine whether the exception warrants another attempt at the API request.
+    If so, delay then return True. Otherwise, return False.
+
+    Keyword arguments:
+    exception -- the exception
+    """
+    # Retry urlopen after exceptions that start with the following strings
+    request_retry_exceptions = [
+        # https://developers.google.com/analytics/devguides/reporting/mcf/v3/limits-quotas#exceeding
+        "HttpError: <HttpError 403",
+        "HttpError: <HttpError 429"
+    ]
+
+    # Delay before retry (seconds)
+    # https://developers.google.com/analytics/devguides/reporting/mcf/v3/limits-quotas#general_quota_limits
+    request_retry_delay = 110
+
+    exception_string = str(exception.__class__.__name__) + ": " + str(exception)
+    retry_request = False
+    for request_retry_exception in request_retry_exceptions:
+        if str(exception_string).startswith(request_retry_exception):
+            # These errors may only be temporary, retry
+            print(exception_string)
+            print("Waiting for Google API request quota reset")
+            time.sleep(request_retry_delay)
+            retry_request = True
+
+    return retry_request
 
 
 def get_spreadsheet_column_letters_from_number(column_number):

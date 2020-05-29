@@ -6,6 +6,7 @@ import unittest.mock
 
 import google.oauth2
 import googleapiclient
+import googleapiclient.errors
 import pytest
 
 import reportsizetrends
@@ -212,16 +213,17 @@ def test_get_heading_row_data(mocker):
     spreadsheet_id = "test_spreadsheet_id"
     sheet_name = "test_sheet_name"
     report_size_trends = get_reportsizetrends_object(spreadsheet_id=spreadsheet_id, sheet_name=sheet_name)
+    request = unittest.mock.sentinel.request
     heading_row_data = "test_heading_row_data"
 
-    mocker.patch.object(Service, "get", return_value=Service())
-    mocker.patch.object(Service, "execute", return_value=heading_row_data)
+    mocker.patch.object(Service, "get", return_value=request)
+    mocker.patch("reportsizetrends.execute_google_api_request", autospec=True, return_value=heading_row_data)
 
     assert heading_row_data == report_size_trends.get_heading_row_data()
     spreadsheet_range = (sheet_name + "!" + report_size_trends.heading_row_number + ":"
                          + report_size_trends.heading_row_number)
     Service.get.assert_called_once_with(spreadsheetId=spreadsheet_id, range=spreadsheet_range)
-    Service.execute.assert_called_once()
+    reportsizetrends.execute_google_api_request.assert_called_once_with(request=request)
 
 
 @pytest.mark.parametrize("data_column_letter_populated", [False, True])
@@ -277,10 +279,11 @@ def test_report_size_trend(mocker, data_column_letter_populated, current_row_pop
 def test_populate_shared_data_headings(mocker):
     spreadsheet_id = "test_spreadsheet_id"
     sheet_name = "test_sheet_name"
+    request = unittest.mock.sentinel.request
     report_size_trends = get_reportsizetrends_object(spreadsheet_id=spreadsheet_id, sheet_name=sheet_name, )
 
-    mocker.patch.object(Service, "update", return_value=Service())
-    mocker.patch.object(Service, "execute")
+    mocker.patch.object(Service, "update", return_value=request)
+    mocker.patch("reportsizetrends.execute_google_api_request", autospec=True)
 
     report_size_trends.populate_shared_data_headings()
     spreadsheet_range = (
@@ -295,7 +298,7 @@ def test_populate_shared_data_headings(mocker):
         body={"values": json.loads(
             report_size_trends.shared_data_columns_headings_data)}
     )
-    Service.execute.assert_called_once()
+    reportsizetrends.execute_google_api_request.assert_called_once_with(request=request)
 
 
 @pytest.mark.parametrize("size_name, expected_populated, expected_letter",
@@ -324,13 +327,14 @@ def test_populate_data_column_heading(mocker):
     fqbn = "test_fqbn"
     report_size_trends = get_reportsizetrends_object(spreadsheet_id=spreadsheet_id, sheet_name=sheet_name, fqbn=fqbn)
 
+    request = unittest.mock.sentinel.request
     data_column_letter = "A"
     sketch_name = "foo/SketchName"
     size_name = "foo size name"
 
     mocker.patch("reportsizetrends.ReportSizeTrends.expand_sheet", autospec=True)
-    mocker.patch.object(Service, "update", return_value=Service())
-    mocker.patch.object(Service, "execute")
+    mocker.patch.object(Service, "update", return_value=request)
+    mocker.patch("reportsizetrends.execute_google_api_request", autospec=True)
 
     report_size_trends.populate_data_column_heading(data_column_letter=data_column_letter,
                                                     sketch_name=sketch_name,
@@ -343,7 +347,7 @@ def test_populate_data_column_heading(mocker):
                                            range=spreadsheet_range,
                                            valueInputOption="RAW",
                                            body={"values": json.loads(data_heading_data)})
-    Service.execute.assert_called_once()
+    reportsizetrends.execute_google_api_request.assert_called_once_with(request=request)
 
 
 def test_expand_sheet(mocker):
@@ -353,8 +357,10 @@ def test_expand_sheet(mocker):
 
     report_size_trends = get_reportsizetrends_object(spreadsheet_id=spreadsheet_id, sheet_id=sheet_id)
 
-    mocker.patch.object(Service, "batchUpdate", return_value=Service())
-    mocker.patch.object(Service, "execute")
+    request = unittest.mock.sentinel.request
+
+    mocker.patch.object(Service, "batchUpdate", return_value=request)
+    mocker.patch("reportsizetrends.execute_google_api_request", autospec=True)
 
     report_size_trends.expand_sheet(dimension=dimension)
 
@@ -372,7 +378,7 @@ def test_expand_sheet(mocker):
             ]
         }
     )
-    Service.execute.assert_called_once()
+    reportsizetrends.execute_google_api_request.assert_called_once_with(request=request)
 
 
 @pytest.mark.parametrize("spreadsheet_object_sheets, expected_sheet_id",
@@ -384,8 +390,12 @@ def test_get_sheet_id(mocker, spreadsheet_object_sheets, expected_sheet_id):
 
     report_size_trends = get_reportsizetrends_object(spreadsheet_id=spreadsheet_id, sheet_name=sheet_name)
 
-    mocker.patch.object(Service, "get", return_value=Service())
-    mocker.patch.object(Service, "execute", return_value={"sheets": spreadsheet_object_sheets})
+    request = unittest.mock.sentinel.request
+
+    mocker.patch.object(Service, "get", return_value=request)
+    mocker.patch("reportsizetrends.execute_google_api_request",
+                 autospec=True,
+                 return_value={"sheets": spreadsheet_object_sheets})
 
     if expected_sheet_id is None:
         with pytest.raises(expected_exception=SystemExit, match="1"):
@@ -394,7 +404,7 @@ def test_get_sheet_id(mocker, spreadsheet_object_sheets, expected_sheet_id):
         assert report_size_trends.get_sheet_id() == expected_sheet_id
 
     Service.get.assert_called_once_with(spreadsheetId=spreadsheet_id)
-    Service.execute.assert_called_once()
+    reportsizetrends.execute_google_api_request.assert_called_once_with(request=request)
 
 
 def test_get_current_row(mocker):
@@ -405,15 +415,19 @@ def test_get_current_row(mocker):
                                                      sheet_name=sheet_name,
                                                      commit_hash=commit_hash)
 
-    mocker.patch.object(Service, "get", return_value=Service())
-    mocker.patch.object(Service, "execute", return_value={"values": [["foo"], [commit_hash]]})
+    request = unittest.mock.sentinel.request
+
+    mocker.patch.object(Service, "get", return_value=request)
+    mocker.patch("reportsizetrends.execute_google_api_request",
+                 autospec=True,
+                 return_value={"values": [["foo"], [commit_hash]]})
 
     assert {"populated": True, "number": 2} == report_size_trends.get_current_row()
     spreadsheet_range = (sheet_name + "!" + report_size_trends.commit_hash_column_letter + ":"
                          + report_size_trends.commit_hash_column_letter)
     Service.get.assert_called_once_with(spreadsheetId=spreadsheet_id, range=spreadsheet_range)
-    Service.execute.assert_called_once()
-    Service.execute.return_value = {"values": [["foo"], ["bar"]]}
+    reportsizetrends.execute_google_api_request.assert_called_once_with(request=request)
+    reportsizetrends.execute_google_api_request.return_value = {"values": [["foo"], ["bar"]]}
     assert {"populated": False, "number": 3} == report_size_trends.get_current_row()
 
 
@@ -424,11 +438,12 @@ def test_create_row(mocker):
     report_size_trends = get_reportsizetrends_object(spreadsheet_id=spreadsheet_id,
                                                      sheet_name=sheet_name,
                                                      commit_url=commit_url)
+    request = unittest.mock.sentinel.request
     row_number = 42
 
     mocker.patch("reportsizetrends.ReportSizeTrends.expand_sheet", autospec=True)
-    mocker.patch.object(Service, "update", return_value=Service())
-    mocker.patch.object(Service, "execute")
+    mocker.patch.object(Service, "update", return_value=request)
+    mocker.patch("reportsizetrends.execute_google_api_request", autospec=True)
 
     report_size_trends.create_row(row_number=row_number)
     spreadsheet_range = (sheet_name + "!" + report_size_trends.shared_data_first_column_letter + str(row_number)
@@ -441,7 +456,7 @@ def test_create_row(mocker):
                                            range=spreadsheet_range,
                                            valueInputOption="USER_ENTERED",
                                            body={"values": json.loads(shared_data_columns_data)})
-    Service.execute.assert_called_once()
+    reportsizetrends.execute_google_api_request.assert_called_once_with(request=request)
 
 
 @pytest.mark.parametrize("memory_usage", [11, "N/A"])
@@ -449,11 +464,13 @@ def test_write_memory_usage_data(mocker, memory_usage):
     spreadsheet_id = "test_spreadsheet_id"
     sheet_name = "test_sheet_name"
     report_size_trends = get_reportsizetrends_object(spreadsheet_id=spreadsheet_id, sheet_name=sheet_name)
+
+    request = unittest.mock.sentinel.request
     column_letter = "A"
     row_number = 42
 
-    mocker.patch.object(Service, "update", return_value=Service())
-    mocker.patch.object(Service, "execute")
+    mocker.patch.object(Service, "update", return_value=request)
+    mocker.patch("reportsizetrends.execute_google_api_request", autospec=True)
 
     report_size_trends.write_memory_usage_data(column_letter=column_letter,
                                                row_number=row_number,
@@ -467,7 +484,7 @@ def test_write_memory_usage_data(mocker, memory_usage):
                                            range=spreadsheet_range,
                                            valueInputOption="RAW",
                                            body={"values": json.loads(size_data)})
-    Service.execute.assert_called_once()
+    reportsizetrends.execute_google_api_request.assert_called_once_with(request=request)
 
 
 def test_get_sketches_report():
@@ -509,6 +526,51 @@ def test_get_service(mocker):
         info=info, scopes=['https://www.googleapis.com/auth/spreadsheets']
     )
     googleapiclient.discovery.build.assert_called_once_with(serviceName='sheets', version='v4', credentials=credentials)
+
+
+def test_execute_google_api_request(mocker):
+    response = unittest.mock.sentinel.response
+
+    # Test successful request
+    mocker.patch("test_reportsizetrends.Service.execute", return_value=response)
+
+    request = Service()
+
+    assert reportsizetrends.execute_google_api_request(request=request) == response
+    request.execute.assert_called_once()
+
+    # Test non-recoverable request exception
+    mocker.resetall()
+    request.execute.side_effect = Exception()
+    mocker.patch("reportsizetrends.determine_request_retry", autospec=True, return_value=False)
+
+    with pytest.raises(expected_exception=Exception):
+        reportsizetrends.execute_google_api_request(request=request)
+
+    # Test recoverable request exception, but retry attempts exceeded
+    mocker.resetall()
+    reportsizetrends.determine_request_retry.return_value = True
+
+    with pytest.raises(expected_exception=Exception):
+        reportsizetrends.execute_google_api_request(request=request)
+
+    service_execute_calls = []
+    maximum_request_attempts = 3
+    for _ in range(0, maximum_request_attempts):
+        service_execute_calls.append(unittest.mock.call())
+    request.execute.assert_has_calls(calls=service_execute_calls)
+
+
+@pytest.mark.parametrize("http_error, expected_retry", [(429, True), (42, False)])
+def test_determine_request_retry(mocker, http_error, expected_retry):
+    class Response:
+        reason = "foo reason"
+        status = http_error
+
+    mocker.patch("time.sleep", autospec=True)
+    assert reportsizetrends.determine_request_retry(
+        exception=googleapiclient.errors.HttpError(resp=Response(), content=bytes(b""))
+    ) == expected_retry
 
 
 @pytest.mark.parametrize("column_number, expected_column_letter", [(1, "A"), (27, "AA")])
