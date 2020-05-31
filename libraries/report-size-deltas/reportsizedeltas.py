@@ -117,6 +117,13 @@ class ReportSizeDeltas:
                 sketches_reports = self.get_sketches_reports(artifact_folder_object=artifact_folder_object)
 
                 if sketches_reports:
+                    if sketches_reports[0][self.ReportKeys.commit_hash] != pr_head_sha:
+                        # The deltas report key uses the hash from the report, but the report_exists() comparison is
+                        # done using the hash provided by the API. If for some reason the two didn't match, it would
+                        # result in the deltas report being done over and over again.
+                        print("::warning::Report commit hash doesn't match PR's head commit hash, skipping")
+                        continue
+
                     report = self.generate_report(sketches_reports=sketches_reports)
 
                     self.comment_report(pr_number=pr_number, report_markdown=report)

@@ -126,10 +126,11 @@ def test_set_verbosity():
 def test_report_size_deltas(mocker):
     artifact_download_url = "test_artifact_download_url"
     artifact_folder_object = "test_artifact_folder_object"
-    sketches_reports = unittest.mock.sentinel.sketches_reports
+    pr_head_sha = "pr-head-sha"
+    sketches_reports = [{reportsizedeltas.ReportSizeDeltas.ReportKeys.commit_hash: pr_head_sha}]
     report = "foo report"
-    json_data = [{"number": 1, "locked": True, "head": {"sha": "foo123", "ref": "asdf"}, "user": {"login": "1234"}},
-                 {"number": 2, "locked": False, "head": {"sha": "foo123", "ref": "asdf"}, "user": {"login": "1234"}}]
+    json_data = [{"number": 1, "locked": True, "head": {"sha": pr_head_sha, "ref": "asdf"}, "user": {"login": "1234"}},
+                 {"number": 2, "locked": False, "head": {"sha": pr_head_sha, "ref": "asdf"}, "user": {"login": "1234"}}]
 
     report_size_deltas = get_reportsizedeltas_object()
 
@@ -182,7 +183,19 @@ def test_report_size_deltas(mocker):
 
     report_size_deltas.comment_report.assert_not_called()
 
+    # Test API/report hash mismatch
+    sketches_reports = [{reportsizedeltas.ReportSizeDeltas.ReportKeys.commit_hash: "mismatched-hash"}]
+
+    reportsizedeltas.ReportSizeDeltas.get_sketches_reports.return_value = sketches_reports
+
+    mocker.resetall()
+
+    report_size_deltas.report_size_deltas()
+
+    report_size_deltas.comment_report.assert_not_called()
+
     # Test making reports
+    sketches_reports = [{reportsizedeltas.ReportSizeDeltas.ReportKeys.commit_hash: pr_head_sha}]
     reportsizedeltas.ReportSizeDeltas.get_sketches_reports.return_value = sketches_reports
     mocker.resetall()
 
