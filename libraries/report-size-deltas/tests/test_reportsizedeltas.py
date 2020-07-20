@@ -1,15 +1,119 @@
 import distutils.dir_util
+import filecmp
 import json
-import os
+import pathlib
 import tempfile
 import unittest.mock
 import urllib
+import zipfile
 
 import pytest
 
 import reportsizedeltas
 
 reportsizedeltas.set_verbosity(enable_verbosity=False)
+
+test_data_path = pathlib.Path(__file__).resolve().parent.joinpath("data")
+report_keys = reportsizedeltas.ReportSizeDeltas.ReportKeys()
+
+
+def get_reportsizedeltas_object(repository_name="FooOwner/BarRepository",
+                                artifact_name="foo-artifact-name",
+                                token="foo token"):
+    """Return a reportsizedeltas.ReportSizeDeltas object to use in tests.
+
+    Keyword arguments:
+    repository_name -- repository owner and name e.g., octocat/Hello-World
+    artifact_name -- name of the workflow artifact that contains the memory usage data
+    token -- GitHub access token
+    """
+    return reportsizedeltas.ReportSizeDeltas(repository_name=repository_name, artifact_name=artifact_name, token=token)
+
+
+def directories_are_same(left_directory, right_directory):
+    """Check recursively whether two directories contain the same files.
+    Based on https://stackoverflow.com/a/6681395
+
+    Keyword arguments:
+    left_directory -- one of the two directories to compare
+    right_directory -- the other directory to compare
+    """
+    filecmp.clear_cache()
+    directory_comparison = filecmp.dircmp(a=left_directory, b=right_directory)
+    if (
+        len(directory_comparison.left_only) > 0
+        or len(directory_comparison.right_only) > 0
+        or len(directory_comparison.funny_files) > 0
+    ):
+        return False
+
+    filecmp.clear_cache()
+    (_, mismatch, errors) = filecmp.cmpfiles(a=left_directory,
+                                             b=right_directory,
+                                             common=directory_comparison.common_files,
+                                             shallow=False)
+    if len(mismatch) > 0 or len(errors) > 0:
+        return False
+
+    for common_dir in directory_comparison.common_dirs:
+        if not directories_are_same(left_directory=left_directory.joinpath(common_dir),
+                                    right_directory=right_directory.joinpath(common_dir)):
+            return False
+
+    return True
+
+
+def test_directories_are_same(tmp_path):
+    left_directory = tmp_path.joinpath("left_directory")
+    right_directory = tmp_path.joinpath("right_directory")
+    left_directory.mkdir()
+    right_directory.mkdir()
+
+    # Different directory contents
+    left_directory.joinpath("foo.txt").write_text(data="foo")
+    assert directories_are_same(left_directory=left_directory, right_directory=right_directory) is False
+
+    # Different file contents
+    right_directory.joinpath("foo.txt").write_text(data="bar")
+    assert directories_are_same(left_directory=left_directory, right_directory=right_directory) is False
+
+    # Different file contents in subdirectory
+    right_directory.joinpath("foo.txt").write_text(data="foo")
+    left_directory.joinpath("bar").mkdir()
+    right_directory.joinpath("bar").mkdir()
+    left_directory.joinpath("bar", "bar.txt").write_text(data="foo")
+    right_directory.joinpath("bar", "bar.txt").write_text(data="bar")
+    assert directories_are_same(left_directory=left_directory, right_directory=right_directory) is False
+
+    right_directory.joinpath("bar", "bar.txt").write_text(data="foo")
+    assert directories_are_same(left_directory=left_directory, right_directory=right_directory) is True
+
+
+def test_main(monkeypatch, mocker):
+    repository_name = "FooOwner/BarRepository"
+    artifact_name = "foo-artifact-name"
+    token = "foo GitHub token"
+    monkeypatch.setenv("GITHUB_REPOSITORY", repository_name)
+    monkeypatch.setenv("INPUT_SIZE-DELTAS-REPORTS-ARTIFACT-NAME", artifact_name)
+    monkeypatch.setenv("INPUT_GITHUB-TOKEN", token)
+
+    class ReportSizeDeltas:
+        """Stub"""
+
+        def report_size_deltas(self):
+            """Stub"""
+            pass
+
+    mocker.patch("reportsizedeltas.set_verbosity", autospec=True)
+    mocker.patch("reportsizedeltas.ReportSizeDeltas", autospec=True, return_value=ReportSizeDeltas())
+    mocker.patch.object(ReportSizeDeltas, "report_size_deltas")
+    reportsizedeltas.main()
+
+    reportsizedeltas.set_verbosity.assert_called_once_with(enable_verbosity=False)
+    reportsizedeltas.ReportSizeDeltas.assert_called_once_with(repository_name=repository_name,
+                                                              artifact_name=artifact_name,
+                                                              token=token)
+    ReportSizeDeltas.report_size_deltas.assert_called_once()
 
 
 def test_set_verbosity():
@@ -19,81 +123,123 @@ def test_set_verbosity():
     reportsizedeltas.set_verbosity(enable_verbosity=False)
 
 
-def test_report_size_deltas():
-    repository_name = "test_name/test_repo"
+def test_report_size_deltas(mocker):
     artifact_download_url = "test_artifact_download_url"
     artifact_folder_object = "test_artifact_folder_object"
-    report = {"markdown": "test_markdown", "data": "test_data"}
+    pr_head_sha = "pr-head-sha"
+    sketches_reports = [{reportsizedeltas.ReportSizeDeltas.ReportKeys.commit_hash: pr_head_sha}]
+    report = "foo report"
+    json_data = [{"number": 1, "locked": True, "head": {"sha": pr_head_sha, "ref": "asdf"}, "user": {"login": "1234"}},
+                 {"number": 2, "locked": False, "head": {"sha": pr_head_sha, "ref": "asdf"}, "user": {"login": "1234"}}]
 
-    report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name=repository_name, artifact_name="foo",
-                                                           token="foo")
+    report_size_deltas = get_reportsizedeltas_object()
 
-    json_data = [{"number": 1, "locked": True, "head": {"sha": "foo123", "ref": "asdf"}, "user": {"login": "1234"}},
-                 {"number": 2, "locked": True, "head": {"sha": "foo123", "ref": "asdf"},
-                  "user": {"login": "1234"}}]
-    report_size_deltas.api_request = unittest.mock.MagicMock(return_value={"json_data": json_data,
-                                                                           "additional_pages": True,
-                                                                           "page_count": 1})
+    mocker.patch("reportsizedeltas.ReportSizeDeltas.api_request",
+                 autospec=True,
+                 return_value={"json_data": json_data,
+                               "additional_pages": True,
+                               "page_count": 1})
+    mocker.patch("reportsizedeltas.ReportSizeDeltas.report_exists", autospec=True, return_value=False)
+    mocker.patch("reportsizedeltas.ReportSizeDeltas.get_artifact_download_url_for_sha",
+                 autospec=True,
+                 return_value=artifact_download_url)
+    mocker.patch("reportsizedeltas.ReportSizeDeltas.get_artifact", autospec=True, return_value=artifact_folder_object)
+    mocker.patch("reportsizedeltas.ReportSizeDeltas.get_sketches_reports", autospec=True, return_value=sketches_reports)
+    mocker.patch("reportsizedeltas.ReportSizeDeltas.generate_report", autospec=True, return_value=report)
+    mocker.patch("reportsizedeltas.ReportSizeDeltas.comment_report", autospec=True)
 
     # Test handling of locked PR
-    assert [] == report_size_deltas.report_size_deltas()
-    calls = [unittest.mock.call(request="repos/" + repository_name + "/pulls",
-                                page_number=1)]
-    report_size_deltas.api_request.assert_has_calls(calls)
+    mocker.resetall()
+
+    report_size_deltas.report_size_deltas()
+
+    report_size_deltas.comment_report.assert_called_once_with(report_size_deltas, pr_number=2, report_markdown=report)
 
     # Test handling of existing reports
-    report_size_deltas.report_exists = unittest.mock.MagicMock(return_value=True)
-
     for pr_data in json_data:
         pr_data["locked"] = False
+    reportsizedeltas.ReportSizeDeltas.report_exists.return_value = True
+    mocker.resetall()
 
-    assert [] == report_size_deltas.report_size_deltas()
+    report_size_deltas.report_size_deltas()
 
-    calls = []
-    for pr_data in json_data:
-        calls = calls + [unittest.mock.call(pr_number=pr_data["number"], pr_head_sha=json_data[0]["head"]["sha"])]
-
-    report_size_deltas.report_exists.assert_has_calls(calls)
+    report_size_deltas.comment_report.assert_not_called()
 
     # Test handling of no report artifact
-    report_size_deltas.report_exists = unittest.mock.MagicMock(return_value=False)
+    reportsizedeltas.ReportSizeDeltas.report_exists.return_value = False
+    reportsizedeltas.ReportSizeDeltas.get_artifact_download_url_for_sha.return_value = None
+    mocker.resetall()
 
-    report_size_deltas.get_artifact_download_url_for_sha = unittest.mock.MagicMock(return_value=None)
+    report_size_deltas.report_size_deltas()
 
-    assert [] == report_size_deltas.report_size_deltas()
+    report_size_deltas.comment_report.assert_not_called()
 
-    calls = []
-    for pr_data in json_data:
-        calls = calls + [unittest.mock.call(pr_user_login=pr_data["user"]["login"],
-                                            pr_head_ref=pr_data["head"]["ref"],
-                                            pr_head_sha=pr_data["head"]["sha"])]
+    # Test handling of old sketches report artifacts
+    reportsizedeltas.ReportSizeDeltas.get_artifact_download_url_for_sha.return_value = artifact_download_url
+    reportsizedeltas.ReportSizeDeltas.get_sketches_reports.return_value = None
+    mocker.resetall()
 
-    report_size_deltas.get_artifact_download_url_for_sha.assert_has_calls(calls)
+    report_size_deltas.report_size_deltas()
+
+    report_size_deltas.comment_report.assert_not_called()
+
+    # Test API/report hash mismatch
+    sketches_reports = [{reportsizedeltas.ReportSizeDeltas.ReportKeys.commit_hash: "mismatched-hash"}]
+
+    reportsizedeltas.ReportSizeDeltas.get_sketches_reports.return_value = sketches_reports
+
+    mocker.resetall()
+
+    report_size_deltas.report_size_deltas()
+
+    report_size_deltas.comment_report.assert_not_called()
 
     # Test making reports
-    report_size_deltas.get_artifact_download_url_for_sha = unittest.mock.MagicMock(
-        return_value=artifact_download_url)
+    sketches_reports = [{reportsizedeltas.ReportSizeDeltas.ReportKeys.commit_hash: pr_head_sha}]
+    reportsizedeltas.ReportSizeDeltas.get_sketches_reports.return_value = sketches_reports
+    mocker.resetall()
 
-    report_size_deltas.get_artifact = unittest.mock.MagicMock(return_value=artifact_folder_object)
+    report_size_deltas.report_size_deltas()
 
-    report_size_deltas.generate_report = unittest.mock.MagicMock(return_value=report)
-
-    report_size_deltas.comment_report = unittest.mock.MagicMock()
-
-    report_list = []
+    report_exists_calls = []
+    get_artifact_download_url_for_sha_calls = []
+    get_sketches_reports_calls = []
+    generate_report_calls = []
+    comment_report_calls = []
     for pr_data in json_data:
-        report_list = report_list + [{"pr_number": pr_data["number"], "report": report["data"]}]
-    assert report_list == report_size_deltas.report_size_deltas()
+        report_exists_calls.append(
+            unittest.mock.call(report_size_deltas, pr_number=pr_data["number"], pr_head_sha=json_data[0]["head"]["sha"])
+        )
+        get_artifact_download_url_for_sha_calls.append(
+            unittest.mock.call(report_size_deltas,
+                               pr_user_login=pr_data["user"]["login"],
+                               pr_head_ref=pr_data["head"]["ref"],
+                               pr_head_sha=pr_data["head"]["sha"])
+        )
+        get_sketches_reports_calls.append(
+            unittest.mock.call(report_size_deltas, artifact_folder_object=artifact_folder_object)
+        )
+        generate_report_calls.append(
+            unittest.mock.call(report_size_deltas,
+                               sketches_reports=sketches_reports)
+        )
+        comment_report_calls.append(
+            unittest.mock.call(report_size_deltas, pr_number=pr_data["number"], report_markdown=report)
+        )
+    report_size_deltas.report_exists.assert_has_calls(calls=report_exists_calls)
+    report_size_deltas.get_artifact_download_url_for_sha.assert_has_calls(calls=get_artifact_download_url_for_sha_calls)
+    report_size_deltas.get_artifact.assert_called_with(report_size_deltas, artifact_download_url=artifact_download_url)
+    report_size_deltas.get_sketches_reports.assert_has_calls(calls=get_sketches_reports_calls)
+    report_size_deltas.generate_report.assert_has_calls(calls=generate_report_calls)
+    report_size_deltas.comment_report.assert_has_calls(calls=comment_report_calls)
 
 
 def test_report_exists():
     repository_name = "test_name/test_repo"
-    artifact_name = "test_artifact_name"
     pr_number = 42
     pr_head_sha = "foo123"
 
-    report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name=repository_name,
-                                                           artifact_name=artifact_name, token="foo")
+    report_size_deltas = get_reportsizedeltas_object(repository_name=repository_name)
 
     json_data = [{"body": "foo123"}, {"body": report_size_deltas.report_key_beginning + pr_head_sha + "foo"}]
     report_size_deltas.api_request = unittest.mock.MagicMock(return_value={"json_data": json_data,
@@ -117,8 +263,7 @@ def test_get_artifact_download_url_for_sha():
     test_artifact_url = "test_artifact_url"
     run_id = "4567"
 
-    report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name=repository_name, artifact_name="foo",
-                                                           token="foo")
+    report_size_deltas = get_reportsizedeltas_object(repository_name=repository_name)
 
     json_data = {"workflow_runs": [{"head_sha": "foo123", "id": "1234"}, {"head_sha": pr_head_sha, "id": run_id}]}
     report_size_deltas.api_request = unittest.mock.MagicMock(return_value={"json_data": json_data,
@@ -162,8 +307,8 @@ def test_get_artifact_download_url_for_run():
     archive_download_url = "archive_download_url"
     run_id = "1234"
 
-    report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name=repository_name,
-                                                           artifact_name=artifact_name, token="foo")
+    report_size_deltas = get_reportsizedeltas_object(repository_name=repository_name,
+                                                     artifact_name=artifact_name)
 
     json_data = {"artifacts": [{"name": artifact_name, "archive_download_url": archive_download_url},
                                {"name": "bar123", "archive_download_url": "wrong_artifact_url"}]}
@@ -189,72 +334,281 @@ def test_get_artifact_download_url_for_run():
     assert report_size_deltas.get_artifact_download_url_for_run(run_id=run_id) is None
 
 
-# # TODO
-# def test_get_artifact():
+@pytest.mark.parametrize("test_artifact_name, expected_success",
+                         [("correct-artifact-name", True),
+                          ("incorrect-artifact-name", False)])
+def test_get_artifact(tmp_path, test_artifact_name, expected_success):
+    artifact_source_path = test_data_path.joinpath("size-deltas-reports-new")
 
-def test_generate_report():
-    pr_head_sha = "asdf123"
-    pr_number = 42
-    repository_name = "test_user/test_repo"
+    # Create temporary folder
+    artifact_destination_path = tmp_path.joinpath("url_path")
+    artifact_destination_path.mkdir()
+    real_artifact_name = "correct-artifact-name"
+    artifact_archive_destination_path = artifact_destination_path.joinpath(real_artifact_name + ".zip")
 
-    report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name=repository_name, artifact_name="foo",
-                                                           token="foo")
+    artifact_download_url = artifact_destination_path.joinpath(test_artifact_name + ".zip").as_uri()
+
+    # Create an archive file
+    with zipfile.ZipFile(file=artifact_archive_destination_path, mode="a") as zip_ref:
+        for artifact_file in artifact_source_path.rglob("*"):
+            zip_ref.write(filename=artifact_file, arcname=artifact_file.relative_to(artifact_source_path))
+
+    report_size_deltas = get_reportsizedeltas_object()
+
+    if expected_success:
+        artifact_folder_object = report_size_deltas.get_artifact(artifact_download_url=artifact_download_url)
+
+        with artifact_folder_object as artifact_folder:
+            # Verify that the artifact matches the source
+            assert directories_are_same(left_directory=artifact_source_path,
+                                        right_directory=artifact_folder)
+    else:
+        with pytest.raises(expected_exception=urllib.error.URLError):
+            report_size_deltas.get_artifact(artifact_download_url=artifact_download_url)
+
+
+@pytest.mark.parametrize(
+    "sketches_reports_path, expected_sketches_reports",
+    [
+        (test_data_path.joinpath("size-deltas-reports-old"),
+         []
+         ),
+        (
+            test_data_path.joinpath("size-deltas-reports-new"),
+            [
+                {
+                    report_keys.commit_hash: "d8fd302",
+                    report_keys.commit_url: "https://example.com/foo",
+                    report_keys.board: "arduino:avr:leonardo",
+                    report_keys.sizes: [
+                        {
+                            report_keys.delta: {
+                                report_keys.absolute: {
+                                    report_keys.maximum: -12,
+                                    report_keys.minimum: -12
+                                }
+                            },
+                            report_keys.name: "flash"
+                        },
+                        {
+                            report_keys.delta: {
+                                report_keys.absolute: {
+                                    report_keys.maximum: 0,
+                                    report_keys.minimum: 0
+                                }
+                            },
+                            report_keys.name: "RAM for global variables"
+                        }
+                    ],
+                    report_keys.sketches: [
+                        {
+                            report_keys.compilation_success: True,
+                            report_keys.name: "examples/Bar",
+                            report_keys.sizes: [
+                                {
+                                    report_keys.current: {
+                                        report_keys.absolute: 3494
+                                    },
+                                    report_keys.delta: {
+                                        report_keys.absolute: "N/A"
+                                    },
+                                    report_keys.name: "flash",
+                                    "previous": {
+                                        report_keys.absolute: "N/A"
+                                    }
+                                },
+                                {
+                                    report_keys.current: {
+                                        report_keys.absolute: 153
+                                    },
+                                    report_keys.delta: {
+                                        report_keys.absolute: "N/A"
+                                    },
+                                    report_keys.name: "RAM for global variables",
+                                    "previous": {
+                                        report_keys.absolute: "N/A"
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            report_keys.compilation_success: True,
+                            report_keys.name: "examples/Foo",
+                            report_keys.sizes: [
+                                {
+                                    report_keys.current: {
+                                        report_keys.absolute: 3462
+                                    },
+                                    report_keys.delta: {
+                                        report_keys.absolute: -12
+                                    },
+                                    report_keys.name: "flash",
+                                    "previous": {
+                                        report_keys.absolute: 3474
+                                    }
+                                },
+                                {
+                                    report_keys.current: {
+                                        report_keys.absolute: 149
+                                    },
+                                    report_keys.delta: {
+                                        report_keys.absolute: 0
+                                    },
+                                    report_keys.name: "RAM for global variables",
+                                    "previous": {
+                                        report_keys.absolute: 149
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    report_keys.commit_hash: "d8fd302",
+                    report_keys.commit_url: "https://example.com/foo",
+                    report_keys.board: "arduino:avr:uno",
+                    report_keys.sizes: [
+                        {
+                            report_keys.delta: {
+                                report_keys.absolute: {
+                                    report_keys.maximum: -994,
+                                    report_keys.minimum: -994
+                                }
+                            },
+                            report_keys.name: "flash"
+                        },
+                        {
+                            report_keys.delta: {
+                                report_keys.absolute: {
+                                    report_keys.maximum: -175,
+                                    report_keys.minimum: -175
+                                }
+                            },
+                            report_keys.name: "RAM for global variables"
+                        }
+                    ],
+                    report_keys.sketches: [
+                        {
+                            report_keys.compilation_success: True,
+                            report_keys.name: "examples/Bar",
+                            report_keys.sizes: [
+                                {
+                                    report_keys.current: {
+                                        report_keys.absolute: 1460
+                                    },
+                                    report_keys.delta: {
+                                        report_keys.absolute: "N/A"
+                                    },
+                                    report_keys.name: "flash",
+                                    "previous": {
+                                        report_keys.absolute: "N/A"
+                                    }
+                                },
+                                {
+                                    report_keys.current: {
+                                        report_keys.absolute: 190
+                                    },
+                                    report_keys.delta: {
+                                        report_keys.absolute: "N/A"
+                                    },
+                                    report_keys.name: "RAM for global variables",
+                                    "previous": {
+                                        report_keys.absolute: "N/A"
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            report_keys.compilation_success: True,
+                            report_keys.name: "examples/Foo",
+                            report_keys.sizes: [
+                                {
+                                    report_keys.current: {
+                                        report_keys.absolute: 444
+                                    },
+                                    report_keys.delta: {
+                                        report_keys.absolute: -994
+                                    },
+                                    report_keys.name: "flash",
+                                    "previous": {
+                                        report_keys.absolute: 1438
+                                    }
+                                },
+                                {
+                                    report_keys.current: {
+                                        report_keys.absolute: 9
+                                    },
+                                    report_keys.delta: {
+                                        report_keys.absolute: -175
+                                    },
+                                    report_keys.name: "RAM for global variables",
+                                    "previous": {
+                                        report_keys.absolute: 184
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        )
+    ]
+)
+def test_get_sketches_reports(sketches_reports_path, expected_sketches_reports):
+    report_size_deltas = get_reportsizedeltas_object()
 
     artifact_folder_object = tempfile.TemporaryDirectory(prefix="test_reportsizedeltas-")
     try:
-        distutils.dir_util.copy_tree(src=os.path.dirname(os.path.realpath(__file__)) + "/data/size-deltas-reports",
+        distutils.dir_util.copy_tree(src=str(sketches_reports_path),
                                      dst=artifact_folder_object.name)
     except Exception:
         artifact_folder_object.cleanup()
         raise
+    sketches_reports = report_size_deltas.get_sketches_reports(artifact_folder_object=artifact_folder_object)
 
-    report = report_size_deltas.generate_report(artifact_folder_object=artifact_folder_object,
-                                                pr_head_sha=pr_head_sha, pr_number=pr_number)
-    report_markdown = (
-        report_size_deltas.report_key_beginning + pr_head_sha
-        + "](https://github.com/" + repository_name + "/pull/" + str(pr_number) + "/commits/" + pr_head_sha
-        + ")**\n\n"
-          "FQBN | Flash Usage | RAM For Global Variables\n"
-          "---|---|---\n"
-          "adafruit:samd:adafruit_feather_m0 | 0 | N/A\n"
-          "arduino:samd:mkrgsm1400 | N/A | N/A\n"
-          "arduino:samd:mkrnb1500 | :green_heart: -24 | 0\n"
-          "esp8266:esp8266:huzzah | :small_red_triangle: +32 | :small_red_triangle: +16")
-    assert report_markdown == report["markdown"]
+    assert sketches_reports == expected_sketches_reports
 
-    report_data = [{'flash': 10580,
-                    'flash_delta': 0,
-                    'fqbn': 'adafruit:samd:adafruit_feather_m0',
-                    'previous_flash': 10580,
-                    'previous_ram': 'N/A',
-                    'ram': 'N/A',
-                    'ram_delta': 'N/A',
-                    'sketch': 'examples/ConnectionHandlerDemo'},
-                   {'flash': 51636,
-                    'flash_delta': 'N/A',
-                    'fqbn': 'arduino:samd:mkrgsm1400',
-                    'previous_flash': 'N/A',
-                    'previous_ram': 'N/A',
-                    'ram': 5104,
-                    'ram_delta': 'N/A',
-                    'sketch': 'examples/ConnectionHandlerDemo'},
-                   {'flash': 50940,
-                    'flash_delta': -24,
-                    'fqbn': 'arduino:samd:mkrnb1500',
-                    'previous_flash': 50964,
-                    'previous_ram': 5068,
-                    'ram': 5068,
-                    'ram_delta': 0,
-                    'sketch': 'examples/ConnectionHandlerDemo'},
-                   {'flash': 274620,
-                    'flash_delta': 32,
-                    'fqbn': 'esp8266:esp8266:huzzah',
-                    'previous_flash': 274588,
-                    'previous_ram': 27480,
-                    'ram': 27496,
-                    'ram_delta': 16,
-                    'sketch': 'examples/ConnectionHandlerDemo'}]
-    assert report_data == report["data"]
+
+def test_generate_report():
+    sketches_report_path = test_data_path.joinpath("size-deltas-reports-new")
+    expected_deltas_report = (
+        "**Memory usage change @ d8fd302**\n\n"
+        "Board|flash|RAM for global variables\n"
+        "-|-|-\n"
+        "arduino:avr:leonardo|:green_heart: -12 - -12|0 - 0\n"
+        "arduino:avr:uno|:green_heart: -994 - -994|:green_heart: -175 - -175\n\n"
+        "<details>\n"
+        "<summary>Click for full report table</summary>\n\n"
+        "Board|examples/Bar<br>flash|examples/Bar<br>RAM for global variables|examples/Foo<br>flash|examples/Foo<br>"
+        "RAM for global variables\n"
+        "-|-|-|-|-\n"
+        "arduino:avr:leonardo|N/A|N/A|-12|0\n"
+        "arduino:avr:uno|N/A|N/A|-994|-175\n\n"
+        "</details>\n\n"
+        "<details>\n"
+        "<summary>Click for full report CSV</summary>\n\n"
+        "```\n"
+        "Board,examples/Bar<br>flash,examples/Bar<br>RAM for global variables,examples/Foo<br>flash,examples/Foo<br>"
+        "RAM for global variables\n"
+        "arduino:avr:leonardo,N/A,N/A,-12,0\n"
+        "arduino:avr:uno,N/A,N/A,-994,-175\n"
+        "```\n"
+        "</details>"
+    )
+
+    report_size_deltas = get_reportsizedeltas_object()
+
+    artifact_folder_object = tempfile.TemporaryDirectory(prefix="test_reportsizedeltas-")
+    try:
+        distutils.dir_util.copy_tree(src=str(sketches_report_path),
+                                     dst=artifact_folder_object.name)
+    except Exception:
+        artifact_folder_object.cleanup()
+        raise
+    sketches_reports = report_size_deltas.get_sketches_reports(artifact_folder_object=artifact_folder_object)
+
+    report = report_size_deltas.generate_report(sketches_reports=sketches_reports)
+    assert report == expected_deltas_report
 
 
 def test_comment_report():
@@ -262,8 +616,7 @@ def test_comment_report():
     report_markdown = "test_report_markdown"
     repository_name = "test_user/test_repo"
 
-    report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name=repository_name, artifact_name="foo",
-                                                           token="foo")
+    report_size_deltas = get_reportsizedeltas_object(repository_name=repository_name)
 
     report_size_deltas.http_request = unittest.mock.MagicMock()
 
@@ -287,7 +640,7 @@ def test_api_request():
     request_parameters = "test_parameters"
     page_number = 1
 
-    report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name="foo", artifact_name="foo", token="foo")
+    report_size_deltas = get_reportsizedeltas_object()
 
     report_size_deltas.get_json_response = unittest.mock.MagicMock(return_value=response_data)
 
@@ -300,11 +653,18 @@ def test_api_request():
 
 
 def test_get_json_response():
-    response = {"headers": {"Link": None}, "body": "[]"}
     url = "test_url"
 
-    report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name="foo", artifact_name="foo", token="foo")
+    report_size_deltas = get_reportsizedeltas_object()
 
+    invalid_response = {"headers": {"Link": None}, "body": "foo"}
+    report_size_deltas.http_request = unittest.mock.MagicMock(return_value=invalid_response)
+
+    # HTTP response body is not JSON
+    with pytest.raises(expected_exception=json.decoder.JSONDecodeError):
+        report_size_deltas.get_json_response(url=url)
+
+    response = {"headers": {"Link": None}, "body": "[]"}
     report_size_deltas.http_request = unittest.mock.MagicMock(return_value=response)
 
     # Empty body
@@ -334,12 +694,18 @@ def test_get_json_response():
     assert response_data["additional_pages"]
     assert 4 == response_data["page_count"]
 
+    report_size_deltas.http_request = unittest.mock.MagicMock(side_effect=Exception())
+
+    # HTTP response body is not JSON
+    with pytest.raises(expected_exception=Exception):
+        report_size_deltas.get_json_response(url=url)
+
 
 def test_http_request():
     url = "test_url"
     data = "test_data"
 
-    report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name="foo", artifact_name="foo", token="foo")
+    report_size_deltas = get_reportsizedeltas_object()
 
     report_size_deltas.raw_http_request = unittest.mock.MagicMock()
 
@@ -348,21 +714,20 @@ def test_http_request():
     report_size_deltas.raw_http_request.assert_called_once_with(url=url, data=data)
 
 
-def test_raw_http_request():
+def test_raw_http_request(mocker):
     user_name = "test_user"
-    repo_name = "test_repo"
     token = "test_token"
-    url = "test_url"
+    url = "https://api.github.com/repo/foo/bar"
     data = "test_data"
     request = "test_request"
+    urlopen_return = unittest.mock.sentinel.urlopen_return
 
-    report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name=user_name + "/" + repo_name,
-                                                           artifact_name="foo",
-                                                           token=token)
+    report_size_deltas = get_reportsizedeltas_object(repository_name=user_name + "/FooRepositoryName",
+                                                     token=token)
 
-    urllib.request.Request = unittest.mock.MagicMock(return_value=request)
-    report_size_deltas.handle_rate_limiting = unittest.mock.MagicMock()
-    urllib.request.urlopen = unittest.mock.MagicMock()
+    mocker.patch.object(urllib.request, "Request", autospec=True, return_value=request)
+    mocker.patch("reportsizedeltas.ReportSizeDeltas.handle_rate_limiting", autospec=True)
+    mocker.patch.object(urllib.request, "urlopen", autospec=True, return_value=urlopen_return)
 
     report_size_deltas.raw_http_request(url=url, data=data)
 
@@ -370,24 +735,30 @@ def test_raw_http_request():
                                                    headers={"Authorization": "token " + token,
                                                             "User-Agent": user_name},
                                                    data=data)
-
-    # URL != https://api.github.com/rate_limit
+    # URL is subject to GitHub API rate limiting
     report_size_deltas.handle_rate_limiting.assert_called_once()
 
-    report_size_deltas.handle_rate_limiting.reset_mock()
-    urllib.request.urlopen.reset_mock()
-
+    # URL is not subject to GitHub API rate limiting
+    mocker.resetall()
     url = "https://api.github.com/rate_limit"
-    report_size_deltas.raw_http_request(url=url, data=data)
-
-    # URL == https://api.github.com/rate_limit
+    assert report_size_deltas.raw_http_request(url=url, data=data) == urlopen_return
     report_size_deltas.handle_rate_limiting.assert_not_called()
-
     urllib.request.urlopen.assert_called_once_with(url=request)
+
+    # urllib.request.urlopen() has non-recoverable exception
+    urllib.request.urlopen.side_effect = Exception()
+    mocker.patch("reportsizedeltas.determine_urlopen_retry", autospec=True, return_value=False)
+    with pytest.raises(expected_exception=Exception):
+        report_size_deltas.raw_http_request(url=url, data=data)
+
+    # urllib.request.urlopen() has potentially recoverable exceptions, but exceeds retry count
+    reportsizedeltas.determine_urlopen_retry.return_value = True
+    with pytest.raises(expected_exception=TimeoutError):
+        report_size_deltas.raw_http_request(url=url, data=data)
 
 
 def test_handle_rate_limiting():
-    report_size_deltas = reportsizedeltas.ReportSizeDeltas(repository_name="foo", artifact_name="foo", token="foo")
+    report_size_deltas = get_reportsizedeltas_object()
 
     json_data = {"json_data": {"resources": {"core": {"remaining": 0, "reset": 1234, "limit": 42}}}}
     report_size_deltas.get_json_response = unittest.mock.MagicMock(return_value=json_data)
@@ -409,7 +780,7 @@ def test_determine_urlopen_retry_true():
 
 def test_determine_urlopen_retry_false():
     assert not reportsizedeltas.determine_urlopen_retry(
-        exception=urllib.error.HTTPError(None, 404, "Not Found", None, None))
+        exception=urllib.error.HTTPError(None, 401, "Unauthorized", None, None))
 
 
 def test_get_page_count():
@@ -420,8 +791,24 @@ def test_get_page_count():
     assert page_count == reportsizedeltas.get_page_count(link_header=link_header)
 
 
-def test_generate_value_cell():
-    assert " | :small_red_triangle: +42" == reportsizedeltas.generate_value_cell(42)
-    assert " | 0" == reportsizedeltas.generate_value_cell(0)
-    assert " | :green_heart: -42" == reportsizedeltas.generate_value_cell(-42)
-    assert " | N/A" == reportsizedeltas.generate_value_cell("N/A")
+@pytest.mark.parametrize("minimum, maximum, expected_value",
+                         [("N/A", "N/A", "N/A"),
+                          (-1, 0, ":green_heart: -1 - 0"),
+                          (0, 0, "0 - 0"),
+                          (0, 1, ":small_red_triangle: 0 - +1"),
+                          (1, 1, ":small_red_triangle: +1 - +1"),
+                          (-1, 1, ":grey_question: -1 - +1")])
+def test_get_summary_value(minimum, maximum, expected_value):
+    assert reportsizedeltas.get_summary_value(minimum=minimum, maximum=maximum) == expected_value
+
+
+def test_generate_markdown_table():
+    assert reportsizedeltas.generate_markdown_table(
+        row_list=[["Board", "Flash", "RAM"], ["foo:bar:baz", 42, 11]]
+    ) == "Board|Flash|RAM\n-|-|-\nfoo:bar:baz|42|11\n"
+
+
+def test_generate_csv_table():
+    assert reportsizedeltas.generate_csv_table(row_list=[["Board", "Flash", "RAM"], ["foo:bar:baz", 42, 11]]) == (
+        "Board,Flash,RAM\nfoo:bar:baz,42,11\n"
+    )

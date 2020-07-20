@@ -4,6 +4,7 @@ import logging
 import os
 import pathlib
 import sys
+import time
 
 from google.oauth2 import service_account
 from googleapiclient import discovery
@@ -57,27 +58,27 @@ class ReportSizeTrends:
     heading_row_number = "1"
     timestamp_column_letter = "A"
     timestamp_column_heading = "Commit Timestamp"
-    sketch_name_column_letter = "B"
-    sketch_name_column_heading = "Sketch Name"
-    commit_hash_column_letter = "C"
+    commit_hash_column_letter = "B"
     commit_hash_column_heading = "Commit Hash"
     shared_data_first_column_letter = timestamp_column_letter
     shared_data_last_column_letter = commit_hash_column_letter
     shared_data_columns_headings_data = (
-        "[[\"" + timestamp_column_heading + "\",\"" + sketch_name_column_heading + "\",\""
-        + commit_hash_column_heading + "\"]]")
+        "[[\"" + timestamp_column_heading + "\",\"" + commit_hash_column_heading + "\"]]"
+    )
 
     # These are appended to the FQBN as the size data column headings
     flash_heading_indicator = " flash"
     ram_heading_indicator = " RAM"
 
     class ReportKeys:
-        fqbn = "fqbn"
+        board = "board"
         commit_hash = "commit_hash"
         commit_url = "commit_url"
-        sketch = "sketch"
-        flash = "flash"
-        ram = "ram"
+        sizes = "sizes"
+        name = "name"
+        absolute = "absolute"
+        current = "current"
+        sketches = "sketches"
 
     def __init__(self, sketches_report_path, google_key_file, spreadsheet_id, sheet_name):
         absolute_sketches_report_path = absolute_path(sketches_report_path)
@@ -86,14 +87,15 @@ class ReportSizeTrends:
             sys.exit(1)
         # load the data from the sketches report
         sketches_report = get_sketches_report(sketches_report_path=absolute_sketches_report_path)
-        self.fqbn = sketches_report[self.ReportKeys.fqbn]
+        self.fqbn = sketches_report[self.ReportKeys.board]
         self.commit_hash = sketches_report[self.ReportKeys.commit_hash]
         self.commit_url = sketches_report[self.ReportKeys.commit_url]
-        self.sketches_data = [sketches_report]
+        self.sketch_reports = sketches_report[self.ReportKeys.sketches]
 
         self.service = get_service(google_key_file=google_key_file)
-        self.sheet_name = sheet_name
         self.spreadsheet_id = spreadsheet_id
+        self.sheet_name = sheet_name
+        self.sheet_id = self.get_sheet_id()
 
     def report_size_trends(self):
         """Add memory usage data to a Google Sheets spreadsheet"""
@@ -104,40 +106,55 @@ class ReportSizeTrends:
             print("Initializing empty sheet")
             self.populate_shared_data_headings()
 
-            # Get the heading row data again in case it changed
-            heading_row_data = self.get_heading_row_data()
+        print("::debug::Reporting for board:", self.fqbn)
 
-        for sketch_data in self.sketches_data:
-            data_column_letters = self.get_data_column_letters(heading_row_data=heading_row_data)
+        for sketch_report in self.sketch_reports:
+            print("::debug::Reporting for sketch:", sketch_report[self.ReportKeys.name])
+            for size_report in sketch_report[self.ReportKeys.sizes]:
+                print("::debug::Reporting for memory type:", size_report[self.ReportKeys.name])
+                # Update the heading row data so it will reflect the changes made in each iteration
+                heading_row_data = self.get_heading_row_data()
 
-            if not data_column_letters["populated"]:
-                # Columns don't exist for this board yet, so create them
-                self.populate_data_column_headings(flash_column_letter=data_column_letters["flash"],
-                                                   ram_column_letter=data_column_letters["ram"])
-
-            current_row = self.get_current_row()
-
-            if not current_row["populated"]:
-                # A row doesn't exist for this commit yet, so create one
-                self.create_row(row_number=current_row["number"], sketch_path=sketch_data[self.ReportKeys.sketch])
-
-            self.write_memory_usage_data(flash_column_letter=data_column_letters["flash"],
-                                         ram_column_letter=data_column_letters["ram"],
-                                         row_number=current_row["number"],
-                                         flash=sketch_data[self.ReportKeys.flash],
-                                         ram=sketch_data[self.ReportKeys.ram])
+                self.report_size_trend(heading_row_data=heading_row_data, sketch_report=sketch_report,
+                                       size_report=size_report)
 
     def get_heading_row_data(self):
         """Return the contents of the heading row"""
         spreadsheet_range = self.sheet_name + "!" + self.heading_row_number + ":" + self.heading_row_number
         request = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheet_id, range=spreadsheet_range)
-        response = request.execute()
+        response = execute_google_api_request(request=request)
         logger.debug("heading_row_data: ")
         logger.debug(response)
         return response
 
+    def report_size_trend(self, heading_row_data, sketch_report, size_report):
+        """Add data for a single FQBN, sketch, and memory type to the sheet."""
+        data_column_letter = self.get_data_column_letter(heading_row_data=heading_row_data,
+                                                         sketch_name=sketch_report[self.ReportKeys.name],
+                                                         size_name=size_report[self.ReportKeys.name])
+
+        if not data_column_letter["populated"]:
+            # Columns don't exist for this board, sketch, memory type yet, so create them
+
+            print("::debug::Report column doesn't already exist, adding it")
+            self.populate_data_column_heading(data_column_letter=data_column_letter["letter"],
+                                              sketch_name=sketch_report[self.ReportKeys.name],
+                                              size_name=size_report[self.ReportKeys.name])
+
+        current_row = self.get_current_row()
+
+        if not current_row["populated"]:
+            # A row doesn't exist for this commit yet, so create one
+            self.create_row(row_number=current_row["number"])
+
+        self.write_memory_usage_data(
+            column_letter=data_column_letter["letter"],
+            row_number=current_row["number"],
+            memory_usage=size_report[self.ReportKeys.current][self.ReportKeys.absolute]
+        )
+
     def populate_shared_data_headings(self):
-        """Add the headings to the shared data columns (timestamp, sketch name, commit)"""
+        """Add the headings to the shared data columns (timestamp, commit)"""
         spreadsheet_range = (
             self.sheet_name + "!" + self.shared_data_first_column_letter + self.heading_row_number + ":"
             + self.shared_data_last_column_letter + self.heading_row_number)
@@ -146,54 +163,102 @@ class ReportSizeTrends:
                                                               valueInputOption="RAW",
                                                               body={"values": json.loads(
                                                                   self.shared_data_columns_headings_data)})
-        response = request.execute()
+        response = execute_google_api_request(request=request)
         logger.debug(response)
 
-    def get_data_column_letters(self, heading_row_data):
-        """Return a dictionary containing the data column numbers for the board
+    def get_data_column_letter(self, heading_row_data, sketch_name, size_name):
+        """Return a dictionary containing the data column letter for this board, sketch, size type.
         populated -- whether the column headings have been added
-        flash -- letter of the column containing flash usage data
-        ram -- letter of the column containing ram usage data
+        letter -- letter of the column containing memory usage data
 
         Keyword arguments:
         heading_row_data -- the contents of the heading row of the spreadsheet, as returned by get_heading_row_data()
+        sketch_name -- the sketch path
+        size_name -- the name of the memory type
         """
         populated = False
         index = 0
         for index, cell_text in enumerate(heading_row_data["values"][0]):
-            if cell_text == self.fqbn + self.flash_heading_indicator:
+            if cell_text == self.fqbn + "\n" + sketch_name + "\n" + size_name:
                 populated = True
                 break
 
         if not populated:
-            # Use the next columns
+            # Use the next column
             index += 1
 
-        board_data_flash_column_letter = chr(index + 65)
-        board_data_ram_column_letter = chr(index + 1 + 65)
-        logger.info("Flash data column: " + board_data_flash_column_letter)
-        logger.info("RAM data column: " + board_data_ram_column_letter)
-        return {"populated": populated, "flash": board_data_flash_column_letter, "ram": board_data_ram_column_letter}
+        data_column_letter = get_spreadsheet_column_letters_from_number(column_number=index + 1)
+        logger.info(size_name, "data column:", data_column_letter)
+        return {"populated": populated, "letter": data_column_letter}
 
-    def populate_data_column_headings(self, flash_column_letter, ram_column_letter):
-        """Add the headings to the data columns for this FQBN
+    def populate_data_column_heading(self, data_column_letter, sketch_name, size_name):
+        """Add the heading to the specified data column.
 
         Keyword arguments:
-        flash_column_letter -- letter of the column that contains the flash usage data
-        ram_column_letter -- letter of the column that contains the dynamic memory used by globals data
+        data_column_letter -- letter of the data column to populate
+        sketch_name -- the sketch path
+        size_name -- the name of the memory type
         """
-        logger.info("No data columns found for " + self.fqbn + ". Adding column headings at columns "
-                    + flash_column_letter + " and " + ram_column_letter)
-        spreadsheet_range = (self.sheet_name + "!" + flash_column_letter + self.heading_row_number + ":"
-                             + ram_column_letter + self.heading_row_number)
-        board_data_headings_data = ("[[\"" + self.fqbn + self.flash_heading_indicator + "\",\"" + self.fqbn
-                                    + self.ram_heading_indicator + "\"]]")
+        logger.info("No data columns found for " + self.fqbn + ", " + sketch_name + ", " + size_name
+                    + ". Adding column heading at column " + data_column_letter)
+
+        # Append a column to the sheet to make sure there is space for the new column
+        self.expand_sheet(dimension="COLUMNS")
+
+        # Add the column heading
+        spreadsheet_range = (self.sheet_name + "!" + data_column_letter + self.heading_row_number + ":"
+                             + data_column_letter + self.heading_row_number)
+        data_heading_data = ("[[\"" + self.fqbn + "\\n" + sketch_name + "\\n" + size_name + "\"]]")
         request = self.service.spreadsheets().values().update(spreadsheetId=self.spreadsheet_id,
                                                               range=spreadsheet_range,
                                                               valueInputOption="RAW",
-                                                              body={"values": json.loads(board_data_headings_data)})
-        response = request.execute()
+                                                              body={"values": json.loads(data_heading_data)})
+        response = execute_google_api_request(request=request)
         logger.debug(response)
+
+    def expand_sheet(self, dimension):
+        """A new sheet provides a limited number of columns and rows, so it's necessary to expand the size of the sheet.
+
+        Keyword arguments:
+        dimension -- whether to add a column or a row ("COLUMNS", "ROWS")
+        """
+        append_request_body = {
+            "requests": [
+                {
+                    "appendDimension": {
+                        "sheetId": self.sheet_id,
+                        "dimension": dimension,
+                        "length": 1
+                    }
+                }
+            ]
+        }
+        request = self.service.spreadsheets().batchUpdate(spreadsheetId=self.spreadsheet_id, body=append_request_body)
+        response = execute_google_api_request(request=request)
+        logger.debug(response)
+
+    def get_sheet_id(self):
+        """While the sheet name is used in the A1 notation used in update value Google Sheets API requests, other
+        requests require the sheet ID. Given a spreadsheet ID and sheet name, the sheet ID may be determined from the
+        Google Sheets API.
+        """
+        sheet_id = None
+        request = self.service.spreadsheets().get(spreadsheetId=self.spreadsheet_id)
+        spreadsheet_object = execute_google_api_request(request=request)
+        for sheet in spreadsheet_object["sheets"]:
+            if sheet["properties"]["title"] == self.sheet_name:
+                sheet_id = sheet["properties"]["sheetId"]
+                break
+
+        if sheet_id is None:
+            print("::error::Spreadsheet ID:",
+                  self.spreadsheet_id,
+                  "does not contain the sheet name:",
+                  self.sheet_name,
+                  "provided via the sheet-name input.")
+            sys.exit(1)
+        else:
+            return sheet_id
 
     def get_current_row(self):
         """Return a dictionary for the current row:
@@ -204,7 +269,7 @@ class ReportSizeTrends:
                              + self.commit_hash_column_letter)
         request = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheet_id,
                                                            range=spreadsheet_range)
-        commit_hash_column_data = request.execute()
+        commit_hash_column_data = execute_google_api_request(request=request)
         logger.debug(commit_hash_column_data)
 
         populated = False
@@ -220,45 +285,53 @@ class ReportSizeTrends:
         logger.info("Current row number: " + str(index))
         return {"populated": populated, "number": index}
 
-    def create_row(self, row_number, sketch_path):
+    def create_row(self, row_number):
         """Add the shared data to the row
 
         Keyword arguments:
-        row_number -- row number
-        sketch_path -- path to the sketch the row's data is for
+        row_number -- spreadsheet row number to create
         """
         logger.info("No row found for the commit hash: " + self.commit_hash + ". Creating a new row #"
                     + str(row_number))
+        # Append a row to make sure there is space in the sheet for the new row
+        # Append a column to the sheet to make sure there is space for the new column
+        self.expand_sheet(dimension="ROWS")
+
+        # Write the data to the row
         spreadsheet_range = (self.sheet_name + "!" + self.shared_data_first_column_letter + str(row_number)
                              + ":" + self.shared_data_last_column_letter + str(row_number))
-        shared_data_columns_data = ("[[\"" + "{:%Y-%m-%d %H:%M:%S}".format(datetime.datetime.now()) + "\",\""
-                                    + sketch_path + "\",\"=HYPERLINK(\\\"" + self.commit_url + "\\\",T(\\\""
+        shared_data_columns_data = ("[[\"" + "{:%Y-%m-%d %H:%M:%S}".format(datetime.datetime.now())
+                                    + "\",\"=HYPERLINK(\\\"" + self.commit_url + "\\\",T(\\\""
                                     + self.commit_hash + "\\\"))\"]]")
         request = self.service.spreadsheets().values().update(spreadsheetId=self.spreadsheet_id,
                                                               range=spreadsheet_range,
                                                               valueInputOption="USER_ENTERED",
                                                               body={"values": json.loads(shared_data_columns_data)})
-        response = request.execute()
+        response = execute_google_api_request(request=request)
         logger.debug(response)
 
-    def write_memory_usage_data(self, flash_column_letter, ram_column_letter, row_number, flash, ram):
-        """Write the memory usage data for the board to the spreadsheet
+    def write_memory_usage_data(self, column_letter, row_number, memory_usage):
+        """Write memory usage data to the specified cell of the spreadsheet.
 
         Keyword arguments:
-        flash_column_letter -- letter of the column containing flash memory usage data for the board
-        ram_column_letter -- letter of the column containing dynamic memory used for global variables for the board
+        column_letter -- letter of the column containing memory usage data for the board, sketch, memory type
         row_number -- number of the row to write to
-        flash -- flash usage
-        ram -- dynamic memory used for global variables
+        memory_usage -- memory usage
         """
-        spreadsheet_range = (self.sheet_name + "!" + flash_column_letter + str(row_number) + ":"
-                             + ram_column_letter + str(row_number))
-        size_data = "[[" + str(flash) + "," + str(ram) + "]]"
+        print("::debug::Writing memory usage value:", memory_usage)
+        if type(memory_usage) is str:
+            # The memory usage value may be "N/A". If so, it must be quoted so it can be made into valid JSON for the
+            # Google Sheets API request
+            memory_usage = "\"" + memory_usage + "\""
+
+        spreadsheet_range = (self.sheet_name + "!" + column_letter + str(row_number) + ":"
+                             + column_letter + str(row_number))
+        size_data = "[[" + str(memory_usage) + "]]"
         request = self.service.spreadsheets().values().update(spreadsheetId=self.spreadsheet_id,
                                                               range=spreadsheet_range,
                                                               valueInputOption="RAW",
                                                               body={"values": json.loads(size_data)})
-        response = request.execute()
+        response = execute_google_api_request(request=request)
         logger.debug(response)
 
 
@@ -299,6 +372,72 @@ def get_service(google_key_file):
     credentials = service_account.Credentials.from_service_account_info(
         info=json.loads(google_key_file, strict=False), scopes=['https://www.googleapis.com/auth/spreadsheets'])
     return discovery.build(serviceName='sheets', version='v4', credentials=credentials)
+
+
+def execute_google_api_request(request):
+    """Execute a Google API request and return the response.
+
+    Keyword arguments:
+    request -- request object
+    """
+    maximum_request_attempts = 3
+
+    request_attempt_count = 0
+    while True:
+        request_attempt_count += 1
+        try:
+            return request.execute()
+        except Exception as exception:
+            if (
+                request_attempt_count >= maximum_request_attempts
+                or determine_request_retry(exception=exception) is False
+            ):
+                raise exception
+
+
+def determine_request_retry(exception):
+    """Determine whether the exception warrants another attempt at the API request.
+    If so, delay then return True. Otherwise, return False.
+
+    Keyword arguments:
+    exception -- the exception
+    """
+    # Retry urlopen after exceptions that start with the following strings
+    request_retry_exceptions = [
+        # https://developers.google.com/analytics/devguides/reporting/mcf/v3/limits-quotas#exceeding
+        "HttpError: <HttpError 403",
+        "HttpError: <HttpError 429"
+    ]
+
+    # Delay before retry (seconds)
+    # https://developers.google.com/analytics/devguides/reporting/mcf/v3/limits-quotas#general_quota_limits
+    request_retry_delay = 110
+
+    exception_string = str(exception.__class__.__name__) + ": " + str(exception)
+    retry_request = False
+    for request_retry_exception in request_retry_exceptions:
+        if str(exception_string).startswith(request_retry_exception):
+            # These errors may only be temporary, retry
+            print(exception_string)
+            print("Waiting for Google API request quota reset")
+            time.sleep(request_retry_delay)
+            retry_request = True
+
+    return retry_request
+
+
+def get_spreadsheet_column_letters_from_number(column_number):
+    """Convert spreadsheet column number to letter (e.g., 27 returns AA). https://stackoverflow.com/a/23862195
+
+    Keyword arguments:
+    column_number -- spreadsheet column number. This is 1 indexed to match the row numbering system.
+    """
+    column_letter = ""
+    while column_number > 0:
+        column_number, remainder = divmod(column_number - 1, 26)
+        column_letter = chr(65 + remainder) + column_letter
+
+    return column_letter
 
 
 # Only execute the following code if the script is run directly, not imported

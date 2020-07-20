@@ -1,0 +1,87 @@
+{
+  "board": "arduino:avr:leonardo",
+  "commit_hash": "d8fd302",
+  "commit_url": "https://example.com/foo",
+  "sketches": [
+    {
+      "name": "examples/Bar",
+      "compilation_success": true,
+      "sizes": [
+        {
+          "name": "flash",
+          "current": {
+            "absolute": 3494
+          },
+          "previous": {
+            "absolute": "N/A"
+          },
+          "delta": {
+            "absolute": "N/A"
+          }
+        },
+        {
+          "name": "RAM for global variables",
+          "current": {
+            "absolute": 153
+          },
+          "previous": {
+            "absolute": "N/A"
+          },
+          "delta": {
+            "absolute": "N/A"
+          }
+        }
+      ]
+    },
+    {
+      "name": "examples/Foo",
+      "compilation_success": true,
+      "sizes": [
+        {
+          "name": "flash",
+          "current": {
+            "absolute": 3462
+          },
+          "previous": {
+            "absolute": 3474
+          },
+          "delta": {
+            "absolute": -12
+          }
+        },
+        {
+          "name": "RAM for global variables",
+          "current": {
+            "absolute": 149
+          },
+          "previous": {
+            "absolute": 149
+          },
+          "delta": {
+            "absolute": 0
+          }
+        }
+      ]
+    }
+  ],
+  "sizes": [
+    {
+      "name": "flash",
+      "delta": {
+        "absolute": {
+          "minimum": -12,
+          "maximum": -12
+        }
+      }
+    },
+    {
+      "name": "RAM for global variables",
+      "delta": {
+        "absolute": {
+          "minimum": 0,
+          "maximum": 0
+        }
+      }
+    }
+  ]
+}
