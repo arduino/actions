@@ -71,6 +71,7 @@ class ReportSizeTrends:
     ram_heading_indicator = " RAM"
 
     class ReportKeys:
+        boards = "boards"
         board = "board"
         commit_hash = "commit_hash"
         commit_url = "commit_url"
@@ -87,10 +88,9 @@ class ReportSizeTrends:
             sys.exit(1)
         # load the data from the sketches report
         sketches_report = get_sketches_report(sketches_report_path=absolute_sketches_report_path)
-        self.fqbn = sketches_report[self.ReportKeys.board]
         self.commit_hash = sketches_report[self.ReportKeys.commit_hash]
         self.commit_url = sketches_report[self.ReportKeys.commit_url]
-        self.sketch_reports = sketches_report[self.ReportKeys.sketches]
+        self.board_reports = sketches_report[self.ReportKeys.boards]
 
         self.service = get_service(google_key_file=google_key_file)
         self.spreadsheet_id = spreadsheet_id
@@ -106,17 +106,20 @@ class ReportSizeTrends:
             print("Initializing empty sheet")
             self.populate_shared_data_headings()
 
-        print("::debug::Reporting for board:", self.fqbn)
+        for board_report in self.board_reports:
+            fqbn = board_report[self.ReportKeys.board]
 
-        for sketch_report in self.sketch_reports:
-            print("::debug::Reporting for sketch:", sketch_report[self.ReportKeys.name])
-            for size_report in sketch_report[self.ReportKeys.sizes]:
-                print("::debug::Reporting for memory type:", size_report[self.ReportKeys.name])
-                # Update the heading row data so it will reflect the changes made in each iteration
-                heading_row_data = self.get_heading_row_data()
+            print("::debug::Reporting for board:", fqbn)
 
-                self.report_size_trend(heading_row_data=heading_row_data, sketch_report=sketch_report,
-                                       size_report=size_report)
+            for sketch_report in board_report[self.ReportKeys.sketches]:
+                print("::debug::Reporting for sketch:", sketch_report[self.ReportKeys.name])
+                for size_report in sketch_report[self.ReportKeys.sizes]:
+                    print("::debug::Reporting for memory type:", size_report[self.ReportKeys.name])
+                    # Update the heading row data so it will reflect the changes made in each iteration
+                    heading_row_data = self.get_heading_row_data()
+
+                    self.report_size_trend(heading_row_data=heading_row_data, fqbn=fqbn, sketch_report=sketch_report,
+                                           size_report=size_report)
 
     def get_heading_row_data(self):
         """Return the contents of the heading row"""
@@ -127,17 +130,19 @@ class ReportSizeTrends:
         logger.debug(response)
         return response
 
-    def report_size_trend(self, heading_row_data, sketch_report, size_report):
+    def report_size_trend(self, heading_row_data, fqbn, sketch_report, size_report):
         """Add data for a single FQBN, sketch, and memory type to the sheet."""
-        data_column_letter = self.get_data_column_letter(heading_row_data=heading_row_data,
-                                                         sketch_name=sketch_report[self.ReportKeys.name],
-                                                         size_name=size_report[self.ReportKeys.name])
+        data_column_letter = get_data_column_letter(heading_row_data=heading_row_data,
+                                                    fqbn=fqbn,
+                                                    sketch_name=sketch_report[self.ReportKeys.name],
+                                                    size_name=size_report[self.ReportKeys.name])
 
         if not data_column_letter["populated"]:
             # Columns don't exist for this board, sketch, memory type yet, so create them
 
             print("::debug::Report column doesn't already exist, adding it")
             self.populate_data_column_heading(data_column_letter=data_column_letter["letter"],
+                                              fqbn=fqbn,
                                               sketch_name=sketch_report[self.ReportKeys.name],
                                               size_name=size_report[self.ReportKeys.name])
 
@@ -166,32 +171,7 @@ class ReportSizeTrends:
         response = execute_google_api_request(request=request)
         logger.debug(response)
 
-    def get_data_column_letter(self, heading_row_data, sketch_name, size_name):
-        """Return a dictionary containing the data column letter for this board, sketch, size type.
-        populated -- whether the column headings have been added
-        letter -- letter of the column containing memory usage data
-
-        Keyword arguments:
-        heading_row_data -- the contents of the heading row of the spreadsheet, as returned by get_heading_row_data()
-        sketch_name -- the sketch path
-        size_name -- the name of the memory type
-        """
-        populated = False
-        index = 0
-        for index, cell_text in enumerate(heading_row_data["values"][0]):
-            if cell_text == self.fqbn + "\n" + sketch_name + "\n" + size_name:
-                populated = True
-                break
-
-        if not populated:
-            # Use the next column
-            index += 1
-
-        data_column_letter = get_spreadsheet_column_letters_from_number(column_number=index + 1)
-        logger.info(size_name, "data column:", data_column_letter)
-        return {"populated": populated, "letter": data_column_letter}
-
-    def populate_data_column_heading(self, data_column_letter, sketch_name, size_name):
+    def populate_data_column_heading(self, data_column_letter, fqbn, sketch_name, size_name):
         """Add the heading to the specified data column.
 
         Keyword arguments:
@@ -199,7 +179,7 @@ class ReportSizeTrends:
         sketch_name -- the sketch path
         size_name -- the name of the memory type
         """
-        logger.info("No data columns found for " + self.fqbn + ", " + sketch_name + ", " + size_name
+        logger.info("No data columns found for " + fqbn + ", " + sketch_name + ", " + size_name
                     + ". Adding column heading at column " + data_column_letter)
 
         # Append a column to the sheet to make sure there is space for the new column
@@ -208,7 +188,7 @@ class ReportSizeTrends:
         # Add the column heading
         spreadsheet_range = (self.sheet_name + "!" + data_column_letter + self.heading_row_number + ":"
                              + data_column_letter + self.heading_row_number)
-        data_heading_data = ("[[\"" + self.fqbn + "\\n" + sketch_name + "\\n" + size_name + "\"]]")
+        data_heading_data = ("[[\"" + fqbn + "\\n" + sketch_name + "\\n" + size_name + "\"]]")
         request = self.service.spreadsheets().values().update(spreadsheetId=self.spreadsheet_id,
                                                               range=spreadsheet_range,
                                                               valueInputOption="RAW",
@@ -393,6 +373,33 @@ def execute_google_api_request(request):
                 or determine_request_retry(exception=exception) is False
             ):
                 raise exception
+
+
+def get_data_column_letter(heading_row_data, fqbn, sketch_name, size_name):
+    """Return a dictionary containing the data column letter for this board, sketch, size type.
+    populated -- whether the column headings have been added
+    letter -- letter of the column containing memory usage data
+
+    Keyword arguments:
+    heading_row_data -- the contents of the heading row of the spreadsheet, as returned by get_heading_row_data()
+    fqbn -- fully qualified board name of the board
+    sketch_name -- the sketch path
+    size_name -- the name of the memory type
+    """
+    populated = False
+    index = 0
+    for index, cell_text in enumerate(heading_row_data["values"][0]):
+        if cell_text == fqbn + "\n" + sketch_name + "\n" + size_name:
+            populated = True
+            break
+
+    if not populated:
+        # Use the next column
+        index += 1
+
+    data_column_letter = get_spreadsheet_column_letters_from_number(column_number=index + 1)
+    logger.info(size_name, "data column:", data_column_letter)
+    return {"populated": populated, "letter": data_column_letter}
 
 
 def determine_request_retry(exception):
