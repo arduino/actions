@@ -1,87 +1,91 @@
 {
-  "board": "arduino:avr:uno",
   "commit_hash": "d8fd302",
   "commit_url": "https://example.com/foo",
-  "sketches": [
+  "boards": [
     {
-      "name": "examples/Bar",
-      "compilation_success": true,
+      "board": "arduino:avr:uno",
+      "sketches": [
+        {
+          "name": "examples/Bar",
+          "compilation_success": true,
+          "sizes": [
+            {
+              "name": "flash",
+              "current": {
+                "absolute": 1460
+              },
+              "previous": {
+                "absolute": "N/A"
+              },
+              "delta": {
+                "absolute": "N/A"
+              }
+            },
+            {
+              "name": "RAM for global variables",
+              "current": {
+                "absolute": 190
+              },
+              "previous": {
+                "absolute": "N/A"
+              },
+              "delta": {
+                "absolute": "N/A"
+              }
+            }
+          ]
+        },
+        {
+          "name": "examples/Foo",
+          "compilation_success": true,
+          "sizes": [
+            {
+              "name": "flash",
+              "current": {
+                "absolute": 444
+              },
+              "previous": {
+                "absolute": 1438
+              },
+              "delta": {
+                "absolute": -994
+              }
+            },
+            {
+              "name": "RAM for global variables",
+              "current": {
+                "absolute": 9
+              },
+              "previous": {
+                "absolute": 184
+              },
+              "delta": {
+                "absolute": -175
+              }
+            }
+          ]
+        }
+      ],
       "sizes": [
         {
           "name": "flash",
-          "current": {
-            "absolute": 1460
-          },
-          "previous": {
-            "absolute": "N/A"
-          },
           "delta": {
-            "absolute": "N/A"
+            "absolute": {
+              "minimum": -994,
+              "maximum": -994
+            }
           }
         },
         {
           "name": "RAM for global variables",
-          "current": {
-            "absolute": 190
-          },
-          "previous": {
-            "absolute": "N/A"
-          },
           "delta": {
-            "absolute": "N/A"
+            "absolute": {
+              "minimum": -175,
+              "maximum": -175
+            }
           }
         }
       ]
-    },
-    {
-      "name": "examples/Foo",
-      "compilation_success": true,
-      "sizes": [
-        {
-          "name": "flash",
-          "current": {
-            "absolute": 444
-          },
-          "previous": {
-            "absolute": 1438
-          },
-          "delta": {
-            "absolute": -994
-          }
-        },
-        {
-          "name": "RAM for global variables",
-          "current": {
-            "absolute": 9
-          },
-          "previous": {
-            "absolute": 184
-          },
-          "delta": {
-            "absolute": -175
-          }
-        }
-      ]
-    }
-  ],
-  "sizes": [
-    {
-      "name": "flash",
-      "delta": {
-        "absolute": {
-          "minimum": -994,
-          "maximum": -994
-        }
-      }
-    },
-    {
-      "name": "RAM for global variables",
-      "delta": {
-        "absolute": {
-          "minimum": -175,
-          "maximum": -175
-        }
-      }
     }
   ]
 }
