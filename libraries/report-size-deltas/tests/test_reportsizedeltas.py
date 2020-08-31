@@ -379,85 +379,89 @@ def test_get_artifact(tmp_path, test_artifact_name, expected_success):
                 {
                     report_keys.commit_hash: "d8fd302",
                     report_keys.commit_url: "https://example.com/foo",
-                    report_keys.board: "arduino:avr:leonardo",
-                    report_keys.sizes: [
+                    report_keys.boards: [
                         {
-                            report_keys.delta: {
-                                report_keys.absolute: {
-                                    report_keys.maximum: -12,
-                                    report_keys.minimum: -12
-                                }
-                            },
-                            report_keys.name: "flash"
-                        },
-                        {
-                            report_keys.delta: {
-                                report_keys.absolute: {
-                                    report_keys.maximum: 0,
-                                    report_keys.minimum: 0
-                                }
-                            },
-                            report_keys.name: "RAM for global variables"
-                        }
-                    ],
-                    report_keys.sketches: [
-                        {
-                            report_keys.compilation_success: True,
-                            report_keys.name: "examples/Bar",
+                            report_keys.board: "arduino:avr:leonardo",
                             report_keys.sizes: [
                                 {
-                                    report_keys.current: {
-                                        report_keys.absolute: 3494
-                                    },
                                     report_keys.delta: {
-                                        report_keys.absolute: "N/A"
+                                        report_keys.absolute: {
+                                            report_keys.maximum: -12,
+                                            report_keys.minimum: -12
+                                        }
                                     },
-                                    report_keys.name: "flash",
-                                    "previous": {
-                                        report_keys.absolute: "N/A"
-                                    }
+                                    report_keys.name: "flash"
                                 },
                                 {
-                                    report_keys.current: {
-                                        report_keys.absolute: 153
-                                    },
                                     report_keys.delta: {
-                                        report_keys.absolute: "N/A"
+                                        report_keys.absolute: {
+                                            report_keys.maximum: 0,
+                                            report_keys.minimum: 0
+                                        }
                                     },
-                                    report_keys.name: "RAM for global variables",
-                                    "previous": {
-                                        report_keys.absolute: "N/A"
-                                    }
+                                    report_keys.name: "RAM for global variables"
                                 }
-                            ]
-                        },
-                        {
-                            report_keys.compilation_success: True,
-                            report_keys.name: "examples/Foo",
-                            report_keys.sizes: [
+                            ],
+                            report_keys.sketches: [
                                 {
-                                    report_keys.current: {
-                                        report_keys.absolute: 3462
-                                    },
-                                    report_keys.delta: {
-                                        report_keys.absolute: -12
-                                    },
-                                    report_keys.name: "flash",
-                                    "previous": {
-                                        report_keys.absolute: 3474
-                                    }
+                                    report_keys.compilation_success: True,
+                                    report_keys.name: "examples/Bar",
+                                    report_keys.sizes: [
+                                        {
+                                            report_keys.current: {
+                                                report_keys.absolute: 3494
+                                            },
+                                            report_keys.delta: {
+                                                report_keys.absolute: "N/A"
+                                            },
+                                            report_keys.name: "flash",
+                                            "previous": {
+                                                report_keys.absolute: "N/A"
+                                            }
+                                        },
+                                        {
+                                            report_keys.current: {
+                                                report_keys.absolute: 153
+                                            },
+                                            report_keys.delta: {
+                                                report_keys.absolute: "N/A"
+                                            },
+                                            report_keys.name: "RAM for global variables",
+                                            "previous": {
+                                                report_keys.absolute: "N/A"
+                                            }
+                                        }
+                                    ]
                                 },
                                 {
-                                    report_keys.current: {
-                                        report_keys.absolute: 149
-                                    },
-                                    report_keys.delta: {
-                                        report_keys.absolute: 0
-                                    },
-                                    report_keys.name: "RAM for global variables",
-                                    "previous": {
-                                        report_keys.absolute: 149
-                                    }
+                                    report_keys.compilation_success: True,
+                                    report_keys.name: "examples/Foo",
+                                    report_keys.sizes: [
+                                        {
+                                            report_keys.current: {
+                                                report_keys.absolute: 3462
+                                            },
+                                            report_keys.delta: {
+                                                report_keys.absolute: -12
+                                            },
+                                            report_keys.name: "flash",
+                                            "previous": {
+                                                report_keys.absolute: 3474
+                                            }
+                                        },
+                                        {
+                                            report_keys.current: {
+                                                report_keys.absolute: 149
+                                            },
+                                            report_keys.delta: {
+                                                report_keys.absolute: 0
+                                            },
+                                            report_keys.name: "RAM for global variables",
+                                            "previous": {
+                                                report_keys.absolute: 149
+                                            }
+                                        }
+                                    ]
                                 }
                             ]
                         }
@@ -466,85 +470,89 @@ def test_get_artifact(tmp_path, test_artifact_name, expected_success):
                 {
                     report_keys.commit_hash: "d8fd302",
                     report_keys.commit_url: "https://example.com/foo",
-                    report_keys.board: "arduino:avr:uno",
-                    report_keys.sizes: [
+                    report_keys.boards: [
                         {
-                            report_keys.delta: {
-                                report_keys.absolute: {
-                                    report_keys.maximum: -994,
-                                    report_keys.minimum: -994
-                                }
-                            },
-                            report_keys.name: "flash"
-                        },
-                        {
-                            report_keys.delta: {
-                                report_keys.absolute: {
-                                    report_keys.maximum: -175,
-                                    report_keys.minimum: -175
-                                }
-                            },
-                            report_keys.name: "RAM for global variables"
-                        }
-                    ],
-                    report_keys.sketches: [
-                        {
-                            report_keys.compilation_success: True,
-                            report_keys.name: "examples/Bar",
+                            report_keys.board: "arduino:avr:uno",
                             report_keys.sizes: [
                                 {
-                                    report_keys.current: {
-                                        report_keys.absolute: 1460
-                                    },
                                     report_keys.delta: {
-                                        report_keys.absolute: "N/A"
+                                        report_keys.absolute: {
+                                            report_keys.maximum: -994,
+                                            report_keys.minimum: -994
+                                        }
                                     },
-                                    report_keys.name: "flash",
-                                    "previous": {
-                                        report_keys.absolute: "N/A"
-                                    }
+                                    report_keys.name: "flash"
                                 },
                                 {
-                                    report_keys.current: {
-                                        report_keys.absolute: 190
-                                    },
                                     report_keys.delta: {
-                                        report_keys.absolute: "N/A"
+                                        report_keys.absolute: {
+                                            report_keys.maximum: -175,
+                                            report_keys.minimum: -175
+                                        }
                                     },
-                                    report_keys.name: "RAM for global variables",
-                                    "previous": {
-                                        report_keys.absolute: "N/A"
-                                    }
+                                    report_keys.name: "RAM for global variables"
                                 }
-                            ]
-                        },
-                        {
-                            report_keys.compilation_success: True,
-                            report_keys.name: "examples/Foo",
-                            report_keys.sizes: [
+                            ],
+                            report_keys.sketches: [
                                 {
-                                    report_keys.current: {
-                                        report_keys.absolute: 444
-                                    },
-                                    report_keys.delta: {
-                                        report_keys.absolute: -994
-                                    },
-                                    report_keys.name: "flash",
-                                    "previous": {
-                                        report_keys.absolute: 1438
-                                    }
+                                    report_keys.compilation_success: True,
+                                    report_keys.name: "examples/Bar",
+                                    report_keys.sizes: [
+                                        {
+                                            report_keys.current: {
+                                                report_keys.absolute: 1460
+                                            },
+                                            report_keys.delta: {
+                                                report_keys.absolute: "N/A"
+                                            },
+                                            report_keys.name: "flash",
+                                            "previous": {
+                                                report_keys.absolute: "N/A"
+                                            }
+                                        },
+                                        {
+                                            report_keys.current: {
+                                                report_keys.absolute: 190
+                                            },
+                                            report_keys.delta: {
+                                                report_keys.absolute: "N/A"
+                                            },
+                                            report_keys.name: "RAM for global variables",
+                                            "previous": {
+                                                report_keys.absolute: "N/A"
+                                            }
+                                        }
+                                    ]
                                 },
                                 {
-                                    report_keys.current: {
-                                        report_keys.absolute: 9
-                                    },
-                                    report_keys.delta: {
-                                        report_keys.absolute: -175
-                                    },
-                                    report_keys.name: "RAM for global variables",
-                                    "previous": {
-                                        report_keys.absolute: 184
-                                    }
+                                    report_keys.compilation_success: True,
+                                    report_keys.name: "examples/Foo",
+                                    report_keys.sizes: [
+                                        {
+                                            report_keys.current: {
+                                                report_keys.absolute: 444
+                                            },
+                                            report_keys.delta: {
+                                                report_keys.absolute: -994
+                                            },
+                                            report_keys.name: "flash",
+                                            "previous": {
+                                                report_keys.absolute: 1438
+                                            }
+                                        },
+                                        {
+                                            report_keys.current: {
+                                                report_keys.absolute: 9
+                                            },
+                                            report_keys.delta: {
+                                                report_keys.absolute: -175
+                                            },
+                                            report_keys.name: "RAM for global variables",
+                                            "previous": {
+                                                report_keys.absolute: 184
+                                            }
+                                        }
+                                    ]
                                 }
                             ]
                         }

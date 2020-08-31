@@ -41,39 +41,44 @@ class Service:
 reportsizetrends.set_verbosity(enable_verbosity=False)
 
 
-def get_reportsizetrends_object(fqbn="foo:bar:baz",
-                                commit_hash="foohash",
+def get_reportsizetrends_object(commit_hash="foohash",
                                 commit_url="https://example.com/foo",
-                                sketch_reports=None,
+                                board_reports=None,
                                 sketches_report_path="foo-sketches-report-path",
                                 google_key_file="foo-key-file",
                                 spreadsheet_id="foo-spreadsheet-id",
                                 sheet_name="foo-sheet-name",
                                 sheet_id="42"):
     # This system is needed to avoid sketches_data having a mutable default argument
-    if sketch_reports is None:
-        sketch_reports = {
-            reportsizetrends.ReportSizeTrends.ReportKeys.sketches: [
+    if board_reports is None:
+        board_reports = {
+            reportsizetrends.ReportSizeTrends.ReportKeys.boards: [
                 {
-                    reportsizetrends.ReportSizeTrends.ReportKeys.name: "FooSketch",
-                    reportsizetrends.ReportSizeTrends.ReportKeys.sizes: [
+                    reportsizetrends.ReportSizeTrends.ReportKeys.board: "foo:bar:baz",
+                    reportsizetrends.ReportSizeTrends.ReportKeys.sketches: [
                         {
-                            reportsizetrends.ReportSizeTrends.ReportKeys.name: "Foo memory type",
-                            reportsizetrends.ReportSizeTrends.ReportKeys.current: {
-                                reportsizetrends.ReportSizeTrends.ReportKeys.absolute: 123
-                            }
+                            reportsizetrends.ReportSizeTrends.ReportKeys.name: "FooSketch",
+                            reportsizetrends.ReportSizeTrends.ReportKeys.sizes: [
+                                {
+                                    reportsizetrends.ReportSizeTrends.ReportKeys.name: "Foo memory type",
+                                    reportsizetrends.ReportSizeTrends.ReportKeys.current: {
+                                        reportsizetrends.ReportSizeTrends.ReportKeys.absolute: 123
+                                    }
+                                }
+                            ]
                         }
                     ]
                 }
             ]
         }
 
-    sketches_report = {reportsizetrends.ReportSizeTrends.ReportKeys.board: fqbn,
-                       reportsizetrends.ReportSizeTrends.ReportKeys.commit_hash: commit_hash,
-                       reportsizetrends.ReportSizeTrends.ReportKeys.commit_url: commit_url}
+    sketches_report = {
+        reportsizetrends.ReportSizeTrends.ReportKeys.commit_hash: commit_hash,
+        reportsizetrends.ReportSizeTrends.ReportKeys.commit_url: commit_url,
+    }
 
     # Merge the dictionaries
-    sketches_report = {**sketches_report, **sketch_reports}
+    sketches_report = {**sketches_report, **board_reports}
 
     os.environ["GITHUB_WORKSPACE"] = "/foo/github-workspace"
     with unittest.mock.patch("pathlib.Path.exists", autospec=True, return_value=True):
@@ -130,14 +135,14 @@ def test_main(monkeypatch, mocker):
 
 @pytest.mark.parametrize("report_path_exists", [True, False])
 def test_reportsizetrends(capsys, monkeypatch, mocker, report_path_exists):
-    fqbn = "foo:bar:baz"
     commit_hash = "foohash"
     commit_url = "https://example.com/foo"
-    sketch_reports = unittest.mock.sentinel.sketch_reports
-    sketches_report = {reportsizetrends.ReportSizeTrends.ReportKeys.board: fqbn,
-                       reportsizetrends.ReportSizeTrends.ReportKeys.commit_hash: commit_hash,
-                       reportsizetrends.ReportSizeTrends.ReportKeys.commit_url: commit_url,
-                       reportsizetrends.ReportSizeTrends.ReportKeys.sketches: sketch_reports}
+    board_reports = unittest.mock.sentinel.board_reports
+    sketches_report = {
+        reportsizetrends.ReportSizeTrends.ReportKeys.commit_hash: commit_hash,
+        reportsizetrends.ReportSizeTrends.ReportKeys.commit_url: commit_url,
+        reportsizetrends.ReportSizeTrends.ReportKeys.boards: board_reports
+    }
     sketches_report_path = "foo/sketches-report-path"
     google_key_file = "foo-key-file"
     service = unittest.mock.sentinel.service
@@ -170,10 +175,9 @@ def test_reportsizetrends(capsys, monkeypatch, mocker, report_path_exists):
             sketches_report_path=reportsizetrends.absolute_path(sketches_report_path)
         )
         reportsizetrends.get_service.assert_called_once_with(google_key_file=google_key_file)
-        assert report_size_trends.fqbn == fqbn
         assert report_size_trends.commit_hash == commit_hash
         assert report_size_trends.commit_url == commit_url
-        assert report_size_trends.sketch_reports == sketch_reports
+        assert report_size_trends.board_reports == board_reports
         assert report_size_trends.service == service
         assert report_size_trends.spreadsheet_id == spreadsheet_id
         assert report_size_trends.sheet_name == sheet_name
@@ -191,13 +195,16 @@ def test_report_size_trends(mocker, heading_row_data):
     # There will always be at least one call one call of get_heading_row_data()
     get_heading_row_data_calls = [unittest.mock.call()]
     report_size_trend_calls = []
-    for sketch_report in report_size_trends.sketch_reports:
-        for size_report in sketch_report[reportsizetrends.ReportSizeTrends.ReportKeys.sizes]:
-            get_heading_row_data_calls.append(unittest.mock.call())
-            report_size_trend_calls.append(unittest.mock.call(report_size_trends,
-                                                              heading_row_data=heading_row_data,
-                                                              sketch_report=sketch_report,
-                                                              size_report=size_report))
+    for board_report in report_size_trends.board_reports:
+        fqbn = board_report[report_size_trends.ReportKeys.board]
+        for sketch_report in board_report[report_size_trends.ReportKeys.sketches]:
+            for size_report in sketch_report[reportsizetrends.ReportSizeTrends.ReportKeys.sizes]:
+                get_heading_row_data_calls.append(unittest.mock.call())
+                report_size_trend_calls.append(unittest.mock.call(report_size_trends,
+                                                                  heading_row_data=heading_row_data,
+                                                                  fqbn=fqbn,
+                                                                  sketch_report=sketch_report,
+                                                                  size_report=size_report))
 
     report_size_trends.report_size_trends()
 
@@ -236,10 +243,11 @@ def test_report_size_trend(mocker, data_column_letter_populated, current_row_pop
 
     report_size_trends = get_reportsizetrends_object()
 
-    sketch_report = report_size_trends.sketch_reports[0]
+    fqbn = "test_fqbn"
+    sketch_report = report_size_trends.board_reports[0][report_keys.sketches][0]
     size_report = sketch_report[report_keys.sizes][0]
 
-    mocker.patch("reportsizetrends.ReportSizeTrends.get_data_column_letter",
+    mocker.patch("reportsizetrends.get_data_column_letter",
                  autospec=True,
                  return_value=data_column_letter)
     mocker.patch("reportsizetrends.ReportSizeTrends.populate_data_column_heading", autospec=True)
@@ -248,6 +256,7 @@ def test_report_size_trend(mocker, data_column_letter_populated, current_row_pop
     mocker.patch("reportsizetrends.ReportSizeTrends.write_memory_usage_data", autospec=True)
 
     report_size_trends.report_size_trend(heading_row_data=heading_row_data,
+                                         fqbn=fqbn,
                                          sketch_report=sketch_report,
                                          size_report=size_report)
 
@@ -255,6 +264,7 @@ def test_report_size_trend(mocker, data_column_letter_populated, current_row_pop
         report_size_trends.populate_data_column_heading.assert_called_once_with(
             report_size_trends,
             data_column_letter=data_column_letter["letter"],
+            fqbn=fqbn,
             sketch_name=sketch_report[report_keys.name],
             size_name=size_report[report_keys.name]
         )
@@ -301,31 +311,22 @@ def test_populate_shared_data_headings(mocker):
     reportsizetrends.execute_google_api_request.assert_called_once_with(request=request)
 
 
-@pytest.mark.parametrize("size_name, expected_populated, expected_letter",
-                         [("bar size name", False, "C"),
-                          ("foo size name", True, "B")])
-def test_get_data_column_letter(size_name, expected_populated, expected_letter):
-    fqbn = "test_fqbn"
-    sketch_name = "foo/SketchName"
-    heading_row_data_size_name = "foo size name"
-
-    report_size_trends = get_reportsizetrends_object(fqbn=fqbn)
-    heading_row_data = {"values": [["foo",
-                                    report_size_trends.fqbn + "\n"
-                                    + sketch_name + "\n"
-                                    + heading_row_data_size_name]]}
-    column_letter = report_size_trends.get_data_column_letter(heading_row_data=heading_row_data,
-                                                              sketch_name=sketch_name,
-                                                              size_name=size_name)
-    assert column_letter["populated"] is expected_populated
-    assert expected_letter == column_letter["letter"]
-
-
 def test_populate_data_column_heading(mocker):
     spreadsheet_id = "test_spreadsheet_id"
     sheet_name = "test_sheet_name"
     fqbn = "test_fqbn"
-    report_size_trends = get_reportsizetrends_object(spreadsheet_id=spreadsheet_id, sheet_name=sheet_name, fqbn=fqbn)
+    board_reports = {
+        reportsizetrends.ReportSizeTrends.ReportKeys.boards: [
+            {
+                reportsizetrends.ReportSizeTrends.ReportKeys.board: fqbn,
+                reportsizetrends.ReportSizeTrends.ReportKeys.sketches: unittest.mock.sentinel.sketches
+            }
+        ]
+    }
+
+    report_size_trends = get_reportsizetrends_object(board_reports=board_reports,
+                                                     spreadsheet_id=spreadsheet_id,
+                                                     sheet_name=sheet_name)
 
     request = unittest.mock.sentinel.request
     data_column_letter = "A"
@@ -337,11 +338,12 @@ def test_populate_data_column_heading(mocker):
     mocker.patch("reportsizetrends.execute_google_api_request", autospec=True)
 
     report_size_trends.populate_data_column_heading(data_column_letter=data_column_letter,
+                                                    fqbn=fqbn,
                                                     sketch_name=sketch_name,
                                                     size_name=size_name)
     spreadsheet_range = (sheet_name + "!" + data_column_letter + report_size_trends.heading_row_number + ":"
                          + data_column_letter + report_size_trends.heading_row_number)
-    data_heading_data = ("[[\"" + report_size_trends.fqbn + "\\n" + sketch_name + "\\n" + size_name + "\"]]")
+    data_heading_data = ("[[\"" + fqbn + "\\n" + sketch_name + "\\n" + size_name + "\"]]")
     report_size_trends.expand_sheet.assert_called_once_with(report_size_trends, dimension="COLUMNS")
     Service.update.assert_called_once_with(spreadsheetId=spreadsheet_id,
                                            range=spreadsheet_range,
@@ -559,6 +561,26 @@ def test_execute_google_api_request(mocker):
     for _ in range(0, maximum_request_attempts):
         service_execute_calls.append(unittest.mock.call())
     request.execute.assert_has_calls(calls=service_execute_calls)
+
+
+@pytest.mark.parametrize("size_name, expected_populated, expected_letter",
+                         [("bar size name", False, "C"),
+                          ("foo size name", True, "B")])
+def test_get_data_column_letter(size_name, expected_populated, expected_letter):
+    fqbn = "test_fqbn"
+    sketch_name = "foo/SketchName"
+    heading_row_data_size_name = "foo size name"
+
+    heading_row_data = {"values": [["foo",
+                                    fqbn + "\n"
+                                    + sketch_name + "\n"
+                                    + heading_row_data_size_name]]}
+    column_letter = reportsizetrends.get_data_column_letter(heading_row_data=heading_row_data,
+                                                            fqbn=fqbn,
+                                                            sketch_name=sketch_name,
+                                                            size_name=size_name)
+    assert column_letter["populated"] is expected_populated
+    assert expected_letter == column_letter["letter"]
 
 
 @pytest.mark.parametrize("http_error, expected_retry", [(429, True), (42, False)])

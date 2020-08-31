@@ -57,6 +57,7 @@ class ReportSizeDeltas:
 
     class ReportKeys:
         """Key names used in the sketches report dictionary"""
+        boards = "boards"
         board = "board"
         commit_hash = "commit_hash"
         commit_url = "commit_url"
@@ -254,14 +255,16 @@ class ReportSizeDeltas:
                 # Combine sketches reports into an array
                 with open(file=artifact_folder + "/" + report_filename) as report_file:
                     report_data = json.load(report_file)
-                    if self.ReportKeys.sketches not in report_data:
+                    if self.ReportKeys.boards not in report_data:
                         # Sketches reports use the old format, skip
                         print("Old format sketches report found, skipping")
                         continue
 
-                    if self.ReportKeys.sizes in report_data:
-                        # The report contains deltas data
-                        sketches_reports.append(report_data)
+                    for fqbn_data in report_data[self.ReportKeys.boards]:
+                        if self.ReportKeys.sizes in fqbn_data:
+                            # The report contains deltas data
+                            sketches_reports.append(report_data)
+                            break
 
         if not sketches_reports:
             print("No size deltas data found in workflow artifact for this PR. The compile-examples action's "
@@ -279,45 +282,51 @@ class ReportSizeDeltas:
 
         # Generate summary report data
         summary_report_data = [[fqbn_column_heading]]
-        for row_number, fqbn_data in enumerate(iterable=sketches_reports, start=1):
-            # Add a row to the report
-            row = ["" for _ in range(len(summary_report_data[0]))]
-            row[0] = fqbn_data[self.ReportKeys.board]
-            summary_report_data.append(row)
+        row_number = 0
+        for fqbns_data in sketches_reports:
+            for fqbn_data in fqbns_data[self.ReportKeys.boards]:
+                row_number += 1
+                # Add a row to the report
+                row = ["" for _ in range(len(summary_report_data[0]))]
+                row[0] = fqbn_data[self.ReportKeys.board]
+                summary_report_data.append(row)
 
-            # Populate the row with data
-            for size_data in fqbn_data[self.ReportKeys.sizes]:
-                # Determine column number for this memory type
-                column_number = get_report_column_number(report=summary_report_data,
-                                                         column_heading=size_data[self.ReportKeys.name])
+                # Populate the row with data
+                for size_data in fqbn_data[self.ReportKeys.sizes]:
+                    # Determine column number for this memory type
+                    column_number = get_report_column_number(report=summary_report_data,
+                                                             column_heading=size_data[self.ReportKeys.name])
 
-                # Add the memory data to the cell
-                summary_report_data[row_number][column_number] = (
-                    get_summary_value(
-                        minimum=size_data[self.ReportKeys.delta][self.ReportKeys.absolute][self.ReportKeys.minimum],
-                        maximum=size_data[self.ReportKeys.delta][self.ReportKeys.absolute][self.ReportKeys.maximum])
-                )
+                    # Add the memory data to the cell
+                    summary_report_data[row_number][column_number] = (
+                        get_summary_value(
+                            minimum=size_data[self.ReportKeys.delta][self.ReportKeys.absolute][self.ReportKeys.minimum],
+                            maximum=size_data[self.ReportKeys.delta][self.ReportKeys.absolute][self.ReportKeys.maximum])
+                    )
 
         # Generate detailed report data
         full_report_data = [[fqbn_column_heading]]
-        for row_number, fqbn_data in enumerate(iterable=sketches_reports, start=1):
-            # Add a row to the report
-            row = ["" for _ in range(len(full_report_data[0]))]
-            row[0] = fqbn_data[self.ReportKeys.board]
-            full_report_data.append(row)
+        row_number = 0
+        for fqbns_data in sketches_reports:
+            for fqbn_data in fqbns_data[self.ReportKeys.boards]:
+                row_number += 1
+                # Add a row to the report
+                row = ["" for _ in range(len(full_report_data[0]))]
+                row[0] = fqbn_data[self.ReportKeys.board]
+                full_report_data.append(row)
 
-            # Populate the row with data
-            for sketch in fqbn_data[self.ReportKeys.sketches]:
-                for size_data in sketch[self.ReportKeys.sizes]:
-                    # Determine column number for this memory type
-                    column_number = get_report_column_number(
-                        report=full_report_data,
-                        column_heading=sketch[self.ReportKeys.name] + "<br>" + size_data[self.ReportKeys.name])
+                # Populate the row with data
+                for sketch in fqbn_data[self.ReportKeys.sketches]:
+                    for size_data in sketch[self.ReportKeys.sizes]:
+                        # Determine column number for this memory type
+                        column_number = get_report_column_number(
+                            report=full_report_data,
+                            column_heading=sketch[self.ReportKeys.name] + "<br>" + size_data[self.ReportKeys.name])
 
-                    # Add the memory data to the cell
-                    full_report_data[row_number][column_number] = (
-                        size_data[self.ReportKeys.delta][self.ReportKeys.absolute]
-                    )
+                        # Add the memory data to the cell
+                        full_report_data[row_number][column_number] = (
+                            size_data[self.ReportKeys.delta][self.ReportKeys.absolute]
+                        )
 
         # Add comment heading
         report_markdown = self.report_key_beginning + sketches_reports[0][self.ReportKeys.commit_hash] + "**\n\n"
