@@ -64,6 +64,7 @@ class ReportSizeDeltas:
         sizes = "sizes"
         name = "name"
         absolute = "absolute"
+        relative = "relative"
         current = "current"
         previous = "previous"
         delta = "delta"
@@ -255,8 +256,12 @@ class ReportSizeDeltas:
                 # Combine sketches reports into an array
                 with open(file=artifact_folder + "/" + report_filename) as report_file:
                     report_data = json.load(report_file)
-                    if self.ReportKeys.boards not in report_data:
-                        # Sketches reports use the old format, skip
+                    if (
+                        (self.ReportKeys.boards not in report_data)
+                        or (self.ReportKeys.maximum
+                            not in report_data[self.ReportKeys.boards][0][self.ReportKeys.sizes][0])
+                    ):
+                        # Sketches reports use an old format, skip
                         print("Old format sketches report found, skipping")
                         continue
 
@@ -294,14 +299,27 @@ class ReportSizeDeltas:
                 # Populate the row with data
                 for size_data in fqbn_data[self.ReportKeys.sizes]:
                     # Determine column number for this memory type
-                    column_number = get_report_column_number(report=summary_report_data,
-                                                             column_heading=size_data[self.ReportKeys.name])
+                    column_number = get_report_column_number(
+                        report=summary_report_data,
+                        column_heading=size_data[self.ReportKeys.name]
+                    )
 
-                    # Add the memory data to the cell
+                    # Add the absolute memory data to the cell
                     summary_report_data[row_number][column_number] = (
                         get_summary_value(
+                            show_emoji=True,
                             minimum=size_data[self.ReportKeys.delta][self.ReportKeys.absolute][self.ReportKeys.minimum],
-                            maximum=size_data[self.ReportKeys.delta][self.ReportKeys.absolute][self.ReportKeys.maximum])
+                            maximum=size_data[self.ReportKeys.delta][self.ReportKeys.absolute][self.ReportKeys.maximum]
+                        )
+                    )
+
+                    # Add the relative memory data to the cell
+                    summary_report_data[row_number][column_number + 1] = (
+                        get_summary_value(
+                            show_emoji=False,
+                            minimum=size_data[self.ReportKeys.delta][self.ReportKeys.relative][self.ReportKeys.minimum],
+                            maximum=size_data[self.ReportKeys.delta][self.ReportKeys.relative][self.ReportKeys.maximum]
+                        )
                     )
 
         # Generate detailed report data
@@ -321,11 +339,20 @@ class ReportSizeDeltas:
                         # Determine column number for this memory type
                         column_number = get_report_column_number(
                             report=full_report_data,
-                            column_heading=sketch[self.ReportKeys.name] + "<br>" + size_data[self.ReportKeys.name])
+                            column_heading=(
+                                sketch[self.ReportKeys.name] + "<br>"
+                                + size_data[self.ReportKeys.name]
+                            )
+                        )
 
-                        # Add the memory data to the cell
+                        # Add the absolute memory data to the cell
                         full_report_data[row_number][column_number] = (
                             size_data[self.ReportKeys.delta][self.ReportKeys.absolute]
+                        )
+
+                        # Add the relative memory data to the cell
+                        full_report_data[row_number][column_number + 1] = (
+                            size_data[self.ReportKeys.delta][self.ReportKeys.relative]
                         )
 
         # Add comment heading
@@ -566,23 +593,34 @@ def get_report_column_number(report, column_heading):
     Keyword arguments:
     column_heading -- the text of the column heading. If it doesn't exist, a column will be created with this heading.
     """
+    relative_column_heading = "%"
+
     try:
         column_number = report[0].index(column_heading, 1)
     except ValueError:
-        # There is no existing column, so create one
+        # There is no existing column, so create columns for relative and absolute
         column_number = len(report[0])
+
+        # Absolute column
         # Add the heading
         report[0].append(column_heading)
+        # Expand the size of the last (current) row to match the new number of columns
+        report[len(report) - 1].append("")
+
+        # Relative column
+        # Add the heading
+        report[0].append(relative_column_heading)
         # Expand the size of the last (current) row to match the new number of columns
         report[len(report) - 1].append("")
 
     return column_number
 
 
-def get_summary_value(minimum, maximum):
+def get_summary_value(show_emoji, minimum, maximum):
     """Return the Markdown formatted text for a memory change data cell in the report table.
 
     Keyword arguments:
+    show_emoji -- whether to add the emoji change indicator
     minimum -- minimum amount of change for this memory type
     minimum -- maximum amount of change for this memory type
     """
@@ -613,7 +651,7 @@ def get_summary_value(minimum, maximum):
 
         value = str(minimum) + " - " + str(maximum)
 
-    if emoji is not None:
+    if show_emoji and (emoji is not None):
         value = emoji + " " + value
 
     return value
