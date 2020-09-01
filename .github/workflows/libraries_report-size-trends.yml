@@ -35,7 +35,14 @@ jobs:
           pip install --quiet pep8-naming
           flake8 --config "$GITHUB_WORKSPACE/libraries/report-size-trends/reportsizetrends/.flake8" --show-source "$GITHUB_WORKSPACE/libraries/report-size-trends/reportsizetrends"
 
-      - name: Run Python unit tests
+      - name: Run Python unit tests and report code coverage
         run: |
           export PYTHONPATH="$GITHUB_WORKSPACE/libraries/report-size-trends/reportsizetrends"
-          pytest "$GITHUB_WORKSPACE/libraries/report-size-trends/reportsizetrends/tests"
+          coverage run --source="$GITHUB_WORKSPACE/libraries/report-size-trends/reportsizetrends" --module pytest "$GITHUB_WORKSPACE/libraries/report-size-trends/reportsizetrends/tests"
+          # Display code coverage report in workflow run log
+          coverage report
+
+      - name: Upload coverage report to Codecov
+        uses: codecov/codecov-action@v1
+        with:
+          fail_ci_if_error: true
