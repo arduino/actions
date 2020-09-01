@@ -25,17 +25,17 @@ class Service:
         return Service()
 
     def get(self):
-        pass
+        pass    # pragma: no cover
 
     def update(self):
-        pass
+        pass    # pragma: no cover
 
     # noinspection PyPep8Naming
     def batchUpdate(self):  # noqa: N802
-        pass
+        pass    # pragma: no cover
 
     def execute(self):
-        pass
+        pass    # pragma: no cover
 
 
 reportsizetrends.set_verbosity(enable_verbosity=False)
@@ -113,7 +113,7 @@ def test_main(monkeypatch, mocker):
 
     class ReportSizeTrends:
         def report_size_trends(self):
-            pass
+            pass    # pragma: no cover
 
     monkeypatch.setenv("INPUT_SKETCHES-REPORT-PATH", sketches_report_path)
     monkeypatch.setenv("INPUT_GOOGLE-KEY-FILE", google_key_file)
