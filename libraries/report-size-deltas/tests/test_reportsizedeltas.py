@@ -102,7 +102,7 @@ def test_main(monkeypatch, mocker):
 
         def report_size_deltas(self):
             """Stub"""
-            pass
+            pass    # pragma: no cover
 
     mocker.patch("reportsizedeltas.set_verbosity", autospec=True)
     mocker.patch("reportsizedeltas.ReportSizeDeltas", autospec=True, return_value=ReportSizeDeltas())
@@ -621,7 +621,7 @@ def test_get_sketches_reports(sketches_reports_path, expected_sketches_reports):
     try:
         distutils.dir_util.copy_tree(src=str(sketches_reports_path),
                                      dst=artifact_folder_object.name)
-    except Exception:
+    except Exception:   # pragma: no cover
         artifact_folder_object.cleanup()
         raise
     sketches_reports = report_size_deltas.get_sketches_reports(artifact_folder_object=artifact_folder_object)
@@ -662,7 +662,7 @@ def test_generate_report():
     try:
         distutils.dir_util.copy_tree(src=str(sketches_report_path),
                                      dst=artifact_folder_object.name)
-    except Exception:
+    except Exception:   # pragma: no cover
         artifact_folder_object.cleanup()
         raise
     sketches_reports = report_size_deltas.get_sketches_reports(artifact_folder_object=artifact_folder_object)
