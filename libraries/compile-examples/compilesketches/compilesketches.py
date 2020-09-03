@@ -616,9 +616,6 @@ class CompileSketches:
             # that behavior is retained when using the old input syntax
             library_list.path = [{self.dependency_source_path_key: os.environ["GITHUB_WORKSPACE"]}]
 
-        if len(library_list.manager) > 0:
-            self.install_libraries_from_library_manager(library_list=library_list.manager)
-
         if len(library_list.path) > 0:
             self.install_libraries_from_path(library_list=library_list.path)
 
@@ -627,6 +624,13 @@ class CompileSketches:
 
         if len(library_list.download) > 0:
             self.install_libraries_from_download(library_list=library_list.download)
+
+        # Library dependencies of Library Manager sourced libraries (as defined in its metadata file) are automatically
+        # installed by Arduino CLI. Although convenient, this could conflict with the user specified installation of the
+        # dependency from a non-Library Manager source. Automatic installation of dependencies already installed is
+        # skipped, so Library Manager sourced libraries must be installed last.
+        if len(library_list.manager) > 0:
+            self.install_libraries_from_library_manager(library_list=library_list.manager)
 
     def install_libraries_from_library_manager(self, library_list):
         """Install libraries using the Arduino Library Manager
