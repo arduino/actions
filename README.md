@@ -38,3 +38,11 @@ available to your Workflows.
 * [arduino/setup-protoc](https://github.com/arduino/setup-protoc) makes the
 [protobuf compiler](https://github.com/protocolbuffers/protobuf)
 available to your Workflows.
+
+## Security
+
+If you think you found a vulnerability or other security-related bug in this project, please read our
+[security policy](https://github.com/arduino/actions/security/policy) and report the bug to our Security Team 🛡️
+Thank you!
+
+e-mail contact: security@arduino.cc
