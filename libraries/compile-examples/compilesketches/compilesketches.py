@@ -20,6 +20,9 @@ import yaml.parser
 
 
 def main():
+    print("::warning::This version of the action is deprecated. Use arduino/compile-sketches. See "
+          "https://github.com/arduino/compile-sketches")
+
     if "INPUT_SIZE-REPORT-SKETCH" in os.environ:
         print("::warning::The size-report-sketch input is no longer used")
 

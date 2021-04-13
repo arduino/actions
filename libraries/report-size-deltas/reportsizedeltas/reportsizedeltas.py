@@ -19,6 +19,9 @@ logger = logging.getLogger(__name__)
 def main():
     set_verbosity(enable_verbosity=False)
 
+    print("::warning::This version of the action is deprecated. Use arduino/report-size-deltas. See "
+      "https://github.com/arduino/report-size-deltas")
+
     report_size_deltas = ReportSizeDeltas(repository_name=os.environ["GITHUB_REPOSITORY"],
                                           artifact_name=os.environ["INPUT_SIZE-DELTAS-REPORTS-ARTIFACT-NAME"],
                                           token=os.environ["INPUT_GITHUB-TOKEN"])
