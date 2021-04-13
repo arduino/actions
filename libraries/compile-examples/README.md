@@ -2,6 +2,16 @@
 
 This action checks whether Arduino sketches compile and produces a report of data from the compilations.
 
+## DEPRECATION NOTICE
+
+**WARNING: the action has been moved to https://github.com/arduino/compile-sketches**
+
+This unmaintained copy is kept only to provide provisional support for existing workflows, but will be removed soon.
+
+See the migration guide:
+
+https://github.com/arduino/compile-sketches/releases/tag/v1.0.0
+
 ## Inputs
 
 ### `cli-version`

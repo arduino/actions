@@ -18,6 +18,9 @@ logger_level = logging.WARNING
 
 
 def main():
+    print("::warning::This version of the action is deprecated. Use arduino/report-size-trends. See "
+      "https://github.com/arduino/report-size-trends")
+
     report_size_trends = ReportSizeTrends(sketches_report_path=os.environ["INPUT_SKETCHES-REPORT-PATH"],
                                           google_key_file=os.environ["INPUT_GOOGLE-KEY-FILE"],
                                           spreadsheet_id=os.environ["INPUT_SPREADSHEET-ID"],

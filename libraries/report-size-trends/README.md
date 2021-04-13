@@ -2,6 +2,28 @@
 
 This action records the memory usage of the sketch specified to the [`arduino/actions/libraries/compile-examples` action](../compile-examples)'s [`size-report-sketch` input](../compile-examples/README.md#size-report-sketch) to a Google Sheets spreadsheet.
 
+## DEPRECATION NOTICE
+
+**WARNING: the action has been moved to https://github.com/arduino/report-size-trends**
+
+This unmaintained copy is kept only to provide provisional support for existing workflows, but will be removed soon.
+
+### Migration guide for `arduino/actions/libraries/report-size-trends` users
+
+Switching to the new action only requires making a single small modification to workflows using this action:
+
+Change:
+
+```yaml
+uses: arduino/actions/libraries/report-size-trends@master
+```
+
+to:
+
+```yaml
+uses: arduino/report-size-trends@main
+```
+
 ## Inputs
 
 ### `sketches-report-path`
