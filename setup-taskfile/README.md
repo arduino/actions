@@ -2,6 +2,16 @@
 
 This action makes the `task` binary available to Workflows.
 
+## DEPRECATION NOTICE
+
+**WARNING: the action has been moved to https://github.com/arduino/setup-task**
+
+This unmaintained copy is kept only to provide provisional support for existing workflows, but will be removed soon.
+
+See the migration guide:
+
+https://github.com/arduino/setup-task/releases/tag/v1.0.0
+
 ## Usage
 
 To get the latest stable version of Task just add this step:

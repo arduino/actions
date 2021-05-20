@@ -32,8 +32,11 @@ action in a Google Sheets spreadsheet.
 * [libraries/spell-check](./libraries/spell-check) checks the files of your
 repository for commonly misspelled words.
 
-* [setup-taskfile](./setup-taskfile) makes [Taskfile](https://taskfile.dev/#/)
-available to your Workflows.
+* [arduino/setup-task](https://github.com/arduino/setup-task) makes [Task](https://taskfile.dev/#/)
+available to your workflows.
+  * **WARNING**: The `arduino/actions/setup-taskfile` action
+  contained in this repository is deprecated. Please use the actively maintained
+  `arduino/setup-task` action at the link above.
 
 ---
 **Note**: Several actions previously hosted in this experimental repository have
