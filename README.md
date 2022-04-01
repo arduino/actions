@@ -31,6 +31,10 @@ action in a Google Sheets spreadsheet.
 
 * [libraries/spell-check](./libraries/spell-check) checks the files of your
 repository for commonly misspelled words.
+  * **WARNING**: The `arduino/actions/libraries/spell-check` action
+  contained in this repository is deprecated. The recommended alternative is
+  [the `codespell-project/actions-codespell` action](https://github.com/codespell-project/actions-codespell).
+
 
 * [arduino/setup-task](https://github.com/arduino/setup-task) makes [Task](https://taskfile.dev/#/)
 available to your workflows.
